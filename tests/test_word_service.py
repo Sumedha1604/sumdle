@@ -6,7 +6,7 @@ import pytest
 from backend import database, word_service
 from backend.word_service import NoActiveSolutionsError
 from backend.mcp_client import McpUnavailableError
-from backend.seed import CURATED_SOLUTIONS, seed_solutions
+from backend.seed import CURATED_SOLUTIONS, FALLBACK_VALID_GUESSES, seed_solutions
 
 
 class FakePsycopgCursor:
@@ -81,6 +81,9 @@ def test_seed_is_idempotent_and_unique(temporary_database):
         count = connection.execute("SELECT COUNT(*) FROM solutions").fetchone()[0]
     assert count == len(CURATED_SOLUTIONS)
     assert len(CURATED_SOLUTIONS) == len(set(CURATED_SOLUTIONS))
+    with database.connect() as connection:
+        cached_count = connection.execute("SELECT COUNT(*) FROM word_validation_cache WHERE valid = 1").fetchone()[0]
+    assert cached_count == len(FALLBACK_VALID_GUESSES)
 
 
 def test_solution_service_uses_sqlite(temporary_database):
@@ -169,6 +172,16 @@ def test_mcp_outage_is_unknown_and_not_cached(temporary_database, monkeypatch):
     assert result == {"word": "adieu", "valid": None, "source": "unavailable", "reason": "dictionary_lookup_unavailable"}
     with database.connect() as connection:
         assert connection.execute("SELECT 1 FROM word_validation_cache WHERE word = 'adieu'").fetchone() is None
+
+
+def test_offline_baseline_accepts_common_guesses_when_mcp_is_unavailable(temporary_database, monkeypatch):
+    async def unexpected_lookup(word):
+        raise AssertionError("seeded fallback must not call MCP")
+
+    monkeypatch.setattr(word_service, "get_mcp_word_definition", unexpected_lookup)
+    assert asyncio.run(word_service.validate_with_fallback("BRAVE")) == {
+        "word": "brave", "valid": True, "source": "cache"
+    }
 
 
 def test_cached_words_work_during_mcp_outage(temporary_database, monkeypatch):

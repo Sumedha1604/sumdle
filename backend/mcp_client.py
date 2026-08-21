@@ -9,13 +9,15 @@ and, optionally, ``SUMDLE_MCP_ARGS`` (a JSON array), ``SUMDLE_MCP_CWD``, and
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import re
 from dataclasses import dataclass
 from typing import Any
 
-logger = logging.getLogger(__name__)
 from .config import get_settings
+
+logger = logging.getLogger(__name__)
 
 
 class McpUnavailableError(RuntimeError):

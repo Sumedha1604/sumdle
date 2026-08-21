@@ -101,7 +101,10 @@ The current integration launches a local stdio process. It is **not** bundled
 into this Render deployment, so leave the MCP command unset on Render unless
 you deliberately package that server and its Node dependencies into the backend
 runtime. MCP is optional: outages return an understandable fallback and do not
-break cached or normal gameplay.
+break cached or normal gameplay. On every startup, Sumdle seeds a small,
+idempotent offline baseline of common five-letter guesses into
+`word_validation_cache`; it is intentionally not a replacement for the MCP
+dictionary's broader coverage.
 
 ## Notes
 
