@@ -58,6 +58,9 @@ first request after inactivity can be slow.
 2. Render can use the committed `render.yaml`, or enter its equivalent settings:
    build command `pip install -r backend/requirements.txt` and start command
    `uvicorn backend.app:app --host 0.0.0.0 --port $PORT`.
+   Keep **Root Directory** blank (repository root) because the start command
+   imports `backend.app`; select the `main` branch and a region close to the
+   Neon project.
 3. Set `DATABASE_URL` from Neon and initially set
    `CORS_ORIGINS=http://localhost:5173`. Add the Vercel URL after the frontend
    is deployed, for example `http://localhost:5173,https://your-app.vercel.app`.
