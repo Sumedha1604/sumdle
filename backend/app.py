@@ -1,12 +1,24 @@
 """HTTP interface for the Sumdle word engine."""
 
+from contextlib import asynccontextmanager
 from datetime import date
 
 from fastapi import FastAPI
 
-from .word_service import get_word_definition, is_valid_guess, validate_with_fallback
+from .mcp_client import McpUnavailableError
+from .database import initialize_database
+from .seed import seed_solutions
+from .word_service import get_word_definition, validate_with_fallback
 
-app = FastAPI(title="Sumdle word engine")
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    initialize_database()
+    seed_solutions()
+    yield
+
+
+app = FastAPI(title="Sumdle word engine", lifespan=lifespan)
 
 
 @app.get("/health")
@@ -15,9 +27,8 @@ def health() -> dict[str, str]:
 
 
 @app.get("/api/words/validate/{word}")
-def validate_word(word: str) -> dict[str, str | bool]:
-    normalized = word.strip().lower()
-    return {"word": normalized, "valid": is_valid_guess(word)}
+async def validate_word(word: str) -> dict[str, str | bool | None]:
+    return await validate_with_fallback(word)
 
 
 @app.get("/api/words/{word}/lookup")
@@ -28,7 +39,10 @@ async def lookup_word(word: str) -> dict[str, str | bool]:
 @app.get("/api/words/{word}/definition")
 async def word_definition(word: str) -> dict:
     normalized = word.strip().lower()
-    definition = await get_word_definition(normalized)
+    try:
+        definition = await get_word_definition(normalized)
+    except McpUnavailableError:
+        return {"word": normalized, "found": False, "source": "unavailable", "reason": "dictionary_lookup_unavailable"}
     if definition is None:
         return {"word": normalized, "found": False, "source": "mcp"}
     return {**definition, "found": True, "source": "mcp"}

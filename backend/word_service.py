@@ -1,4 +1,4 @@
-"""Fast, cached access to Sumdle's word banks."""
+"""Word validation and curated-solution services backed by SQLite."""
 
 from __future__ import annotations
 
@@ -6,66 +6,108 @@ import hashlib
 import json
 import random
 from datetime import date as date_type
-from pathlib import Path
+from typing import Any
 
-from .mcp_client import get_word_definition as get_mcp_word_definition
-
-DATA_DIR = Path(__file__).resolve().parent / "data"
-
-
-def _load_bank(filename: str) -> tuple[str, ...]:
-    with (DATA_DIR / filename).open(encoding="utf-8") as source:
-        return tuple(json.load(source))
-
-
-SOLUTIONS = _load_bank("solutions.json")
-VALID_GUESSES = _load_bank("valid_guesses.json")
-SOLUTION_SET = frozenset(SOLUTIONS)
-VALID_GUESS_SET = frozenset(VALID_GUESSES)
+from . import database
+from .mcp_client import McpUnavailableError, get_word_definition as get_mcp_word_definition
+from .seed import seed_solutions
 
 
 def normalize_guess(word: str) -> str:
-    """Normalize user input without accepting non-string values."""
     return word.strip().lower() if isinstance(word, str) else ""
 
 
-def is_valid_guess(word: str) -> bool:
-    """Return whether the normalized input is in the accepted-guess set."""
-    return normalize_guess(word) in VALID_GUESS_SET
-
-
-async def validate_with_fallback(word: str) -> dict[str, str | bool]:
-    """Validate locally first, using the optional MCP dictionary only on misses."""
+def is_structurally_valid(word: str) -> bool:
     normalized = normalize_guess(word)
-    if normalized in VALID_GUESS_SET:
-        return {"word": normalized, "valid": True, "source": "local"}
-    if len(normalized) != 5 or not normalized.isalpha():
+    return len(normalized) == 5 and normalized.isascii() and normalized.isalpha()
+
+
+def _prepare() -> None:
+    database.initialize_database()
+    seed_solutions()
+
+
+def _cached_validation(word: str) -> dict[str, Any] | None:
+    with database.connect() as connection:
+        row = connection.execute(
+            "SELECT valid, definition FROM word_validation_cache WHERE word = ?", (word,)
+        ).fetchone()
+    if row is None:
+        return None
+    result: dict[str, Any] = {"word": word, "valid": bool(row["valid"]), "source": "cache"}
+    if row["definition"]:
+        try:
+            result["definition"] = json.loads(row["definition"])
+        except json.JSONDecodeError:
+            pass
+    return result
+
+
+def _store_validation(word: str, valid: bool, definition: dict[str, Any] | None) -> None:
+    with database.connect() as connection:
+        connection.execute(
+            """INSERT INTO word_validation_cache (word, valid, definition, checked_at)
+               VALUES (?, ?, ?, ?)
+               ON CONFLICT(word) DO UPDATE SET valid = excluded.valid,
+               definition = excluded.definition, checked_at = excluded.checked_at""",
+            (word, int(valid), json.dumps(definition) if definition else None, database.now_iso()),
+        )
+
+
+async def validate_with_fallback(word: str) -> dict[str, str | bool | None]:
+    """Validate with SQLite first, querying MCP only for uncached valid shapes."""
+    normalized = normalize_guess(word)
+    if not is_structurally_valid(normalized):
         return {"word": normalized, "valid": False, "source": "invalid"}
+    _prepare()
+    cached = _cached_validation(normalized)
+    if cached is not None:
+        return {key: value for key, value in cached.items() if key != "definition"}
+    try:
+        definition = await get_mcp_word_definition(normalized)
+    except McpUnavailableError:
+        return {"word": normalized, "valid": None, "source": "unavailable", "reason": "dictionary_lookup_unavailable"}
+    valid = definition is not None
+    _store_validation(normalized, valid, definition)
+    return {"word": normalized, "valid": valid, "source": "mcp"}
+
+
+async def get_word_definition(word: str) -> dict[str, Any] | None:
+    normalized = normalize_guess(word)
+    if not is_structurally_valid(normalized):
+        return None
+    _prepare()
+    cached = _cached_validation(normalized)
+    if cached is not None:
+        return cached.get("definition")
     definition = await get_mcp_word_definition(normalized)
-    return {"word": normalized, "valid": definition is not None, "source": "mcp" if definition else "unavailable"}
+    _store_validation(normalized, definition is not None, definition)
+    return definition
 
 
-async def get_word_definition(word: str) -> dict | None:
-    """Get normalized dictionary data without coupling callers to MCP objects."""
-    return await get_mcp_word_definition(normalize_guess(word))
+def get_all_active_solutions() -> tuple[str, ...]:
+    _prepare()
+    with database.connect() as connection:
+        rows = connection.execute("SELECT word FROM solutions WHERE active = 1 ORDER BY word").fetchall()
+    return tuple(row["word"] for row in rows)
+
+
+def solution_exists(word: str) -> bool:
+    _prepare()
+    with database.connect() as connection:
+        return connection.execute("SELECT 1 FROM solutions WHERE word = ? AND active = 1", (normalize_guess(word),)).fetchone() is not None
 
 
 def get_random_solution(exclude: set[str] | None = None) -> str:
-    """Choose a solution, preferring one not present in ``exclude``.
-
-    If all solutions are excluded, the full bank is used so this function always
-    returns a playable puzzle.
-    """
+    solutions = get_all_active_solutions()
     excluded = {normalize_guess(word) for word in (exclude or set())}
-    choices = tuple(word for word in SOLUTIONS if word not in excluded) or SOLUTIONS
-    return random.choice(choices)
+    return random.choice(tuple(word for word in solutions if word not in excluded) or solutions)
 
 
 def get_daily_solution(date: date_type | None = None) -> str:
-    """Map a calendar date to a stable answer using SHA-256."""
     puzzle_date = date or date_type.today()
     if not isinstance(puzzle_date, date_type):
         raise TypeError("date must be a datetime.date or None")
+    solutions = get_all_active_solutions()
     digest = hashlib.sha256(puzzle_date.isoformat().encode("utf-8")).digest()
-    index = int.from_bytes(digest, byteorder="big") % len(SOLUTIONS)
-    return SOLUTIONS[index]
+    return solutions[int.from_bytes(digest, byteorder="big") % len(solutions)]

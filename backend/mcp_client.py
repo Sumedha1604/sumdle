@@ -19,6 +19,10 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 
+class McpUnavailableError(RuntimeError):
+    """The optional dictionary service could not be reached."""
+
+
 @dataclass(frozen=True)
 class McpConfig:
     command: str | None
@@ -45,15 +49,6 @@ class McpConfig:
             cwd=os.getenv("SUMDLE_MCP_CWD") or None,
             timeout_seconds=max(timeout, 0.1),
         )
-
-
-def _clean_value(value: Any) -> Any:
-    """Convert JSON-like MCP output into regular Python values."""
-    if isinstance(value, dict):
-        return {str(key): _clean_value(item) for key, item in value.items()}
-    if isinstance(value, list):
-        return [_clean_value(item) for item in value]
-    return value
 
 
 def _definition_from_text(word: str, text: str) -> dict[str, Any] | None:
@@ -133,12 +128,12 @@ class McpDictionaryClient:
         if normalized in self._cache:
             return self._cache[normalized]
         if not self.config.command:
-            return None
+            raise McpUnavailableError("MCP dictionary is not configured")
         try:
             result = await asyncio.wait_for(self._call_definition(normalized), self.config.timeout_seconds)
         except Exception as error:  # The external server must never break gameplay.
             logger.info("MCP dictionary lookup unavailable for %s: %s", normalized, error)
-            result = None
+            raise McpUnavailableError("MCP dictionary lookup failed") from error
         self._cache[normalized] = result
         return result
 

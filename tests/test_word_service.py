@@ -1,91 +1,104 @@
-from datetime import date
 import asyncio
 
-from backend import word_service
-from backend.mcp_client import McpConfig, McpDictionaryClient
+import pytest
+
+from backend import database, word_service
+from backend.mcp_client import McpUnavailableError
+from backend.seed import CURATED_SOLUTIONS, seed_solutions
 
 
-def test_valid_guess_and_normalization():
-    assert word_service.is_valid_guess("crane")
-    assert word_service.is_valid_guess("CRANE")
-    assert word_service.is_valid_guess("  crane  ")
+@pytest.fixture
+def temporary_database(tmp_path, monkeypatch):
+    path = tmp_path / "sumdle.db"
+    monkeypatch.setattr(database, "DATABASE_PATH", path)
+    return path
 
 
-def test_invalid_and_nonalphabetic_guesses():
-    assert not word_service.is_valid_guess("zzzzz")
-    assert not word_service.is_valid_guess("cr4ne")
-    assert not word_service.is_valid_guess("four")
+def test_database_initialization_is_repeatable(temporary_database):
+    database.initialize_database()
+    database.initialize_database()
+    with database.connect() as connection:
+        tables = {row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+    assert {"solutions", "word_validation_cache"} <= tables
 
 
-def test_daily_solution_is_stable_and_is_a_solution():
-    puzzle_date = date(2026, 8, 21)
-    assert word_service.get_daily_solution(puzzle_date) == word_service.get_daily_solution(puzzle_date)
-    assert word_service.get_daily_solution(puzzle_date) in word_service.SOLUTION_SET
+def test_seed_is_idempotent_and_unique(temporary_database):
+    seed_solutions()
+    seed_solutions()
+    with database.connect() as connection:
+        count = connection.execute("SELECT COUNT(*) FROM solutions").fetchone()[0]
+    assert count == len(CURATED_SOLUTIONS)
+    assert len(CURATED_SOLUTIONS) == len(set(CURATED_SOLUTIONS))
 
 
-def test_different_dates_are_deterministic():
-    first = word_service.get_daily_solution(date(2026, 8, 21))
-    second = word_service.get_daily_solution(date(2026, 8, 22))
-    assert first == word_service.get_daily_solution(date(2026, 8, 21))
-    assert second == word_service.get_daily_solution(date(2026, 8, 22))
+def test_solution_service_uses_sqlite(temporary_database):
+    assert word_service.solution_exists("APPLE")
+    assert word_service.get_random_solution() in CURATED_SOLUTIONS
+    assert set(word_service.get_all_active_solutions()) == set(CURATED_SOLUTIONS)
 
 
-def test_random_solution_and_exclusion():
-    excluded = set(word_service.SOLUTIONS[:-1])
-    assert word_service.get_random_solution(excluded) == word_service.SOLUTIONS[-1]
-    assert word_service.get_random_solution() in word_service.SOLUTION_SET
-
-
-def test_banks_are_well_formed_and_solutions_are_accepted():
-    assert len(word_service.SOLUTIONS) == len(set(word_service.SOLUTIONS))
-    assert len(word_service.VALID_GUESSES) == len(set(word_service.VALID_GUESSES))
-    assert word_service.SOLUTION_SET <= word_service.VALID_GUESS_SET
-    for bank in (word_service.SOLUTIONS, word_service.VALID_GUESSES):
-        assert all(word.isalpha() and word.islower() and len(word) == 5 for word in bank)
-
-
-def test_validate_with_fallback_short_circuits_local_words(monkeypatch):
+def test_malformed_input_skips_mcp(temporary_database, monkeypatch):
     async def unexpected_lookup(word):
-        raise AssertionError("MCP should not be used for local words")
+        raise AssertionError("MCP must not receive malformed guesses")
 
     monkeypatch.setattr(word_service, "get_mcp_word_definition", unexpected_lookup)
-    assert asyncio.run(word_service.validate_with_fallback("CRANE")) == {
-        "word": "crane", "valid": True, "source": "local"
+    assert asyncio.run(word_service.validate_with_fallback("app4e")) == {
+        "word": "app4e", "valid": False, "source": "invalid"
     }
 
 
-def test_validate_with_fallback_accepts_mcp_definition(monkeypatch):
+def test_mcp_result_is_persisted_and_later_uses_cache(temporary_database, monkeypatch):
+    calls = 0
+
     async def mcp_lookup(word):
-        assert word == "fiver"
+        nonlocal calls
+        calls += 1
         return {"word": word, "definitions": [{"definition": "A group of five."}], "examples": []}
 
     monkeypatch.setattr(word_service, "get_mcp_word_definition", mcp_lookup)
-    assert asyncio.run(word_service.validate_with_fallback("fiver")) == {
-        "word": "fiver", "valid": True, "source": "mcp"
-    }
+    assert asyncio.run(word_service.validate_with_fallback("FIVER")) == {"word": "fiver", "valid": True, "source": "mcp"}
+    assert asyncio.run(word_service.validate_with_fallback("fiver")) == {"word": "fiver", "valid": True, "source": "cache"}
+    assert calls == 1
+    with database.connect() as connection:
+        row = connection.execute("SELECT valid, definition FROM word_validation_cache WHERE word = 'fiver'").fetchone()
+    assert row["valid"] == 1 and "group of five" in row["definition"]
+    assert not word_service.solution_exists("fiver")
 
 
-def test_validate_with_fallback_rejects_invalid_before_mcp(monkeypatch):
-    async def unexpected_lookup(word):
-        raise AssertionError("invalid inputs should not use MCP")
-
-    monkeypatch.setattr(word_service, "get_mcp_word_definition", unexpected_lookup)
-    assert asyncio.run(word_service.validate_with_fallback("four")) == {
-        "word": "four", "valid": False, "source": "invalid"
-    }
-
-
-def test_mcp_client_caches_mocked_lookup(monkeypatch):
-    client = McpDictionaryClient(McpConfig(command="mock-server"))
+def test_invalid_mcp_result_is_cached(temporary_database, monkeypatch):
     calls = 0
 
-    async def mocked_call(word):
+    async def missing_word(word):
         nonlocal calls
         calls += 1
-        return {"word": word, "definitions": [{"definition": "A test word."}], "examples": []}
+        return None
 
-    monkeypatch.setattr(client, "_call_definition", mocked_call)
-    first = asyncio.run(client.lookup_word_via_mcp("FIVER"))
-    second = asyncio.run(client.lookup_word_via_mcp("fiver"))
-    assert first == second
+    monkeypatch.setattr(word_service, "get_mcp_word_definition", missing_word)
+    assert asyncio.run(word_service.validate_with_fallback("zzzzz")) == {"word": "zzzzz", "valid": False, "source": "mcp"}
+    assert asyncio.run(word_service.validate_with_fallback("ZZZZZ")) == {"word": "zzzzz", "valid": False, "source": "cache"}
     assert calls == 1
+
+
+def test_mcp_outage_is_unknown_and_not_cached(temporary_database, monkeypatch):
+    async def unavailable(word):
+        raise McpUnavailableError("offline")
+
+    monkeypatch.setattr(word_service, "get_mcp_word_definition", unavailable)
+    result = asyncio.run(word_service.validate_with_fallback("adieu"))
+    assert result == {"word": "adieu", "valid": None, "source": "unavailable", "reason": "dictionary_lookup_unavailable"}
+    with database.connect() as connection:
+        assert connection.execute("SELECT 1 FROM word_validation_cache WHERE word = 'adieu'").fetchone() is None
+
+
+def test_cached_words_work_during_mcp_outage(temporary_database, monkeypatch):
+    async def valid_word(word):
+        return {"word": word, "definitions": [{"definition": "To advance."}], "examples": []}
+
+    monkeypatch.setattr(word_service, "get_mcp_word_definition", valid_word)
+    asyncio.run(word_service.validate_with_fallback("forge"))
+
+    async def unavailable(word):
+        raise McpUnavailableError("offline")
+
+    monkeypatch.setattr(word_service, "get_mcp_word_definition", unavailable)
+    assert asyncio.run(word_service.validate_with_fallback("FORGE")) == {"word": "forge", "valid": True, "source": "cache"}

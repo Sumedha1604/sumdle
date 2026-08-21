@@ -2,17 +2,10 @@
 
 ## Word engine
 
-The Python word engine lives in `backend/`. Its checked-in word banks are built
-from the local `web2` dictionary using:
-
-```bash
-python -m backend.word_bank_builder /usr/share/dict/web2
-```
-
-Replace that input with a reviewed, trustworthy open dictionary when updating
-the production bank. `solutions.json` comes from the deliberately curated
-answer candidates; `valid_guesses.json` is the larger normalized dictionary and
-always includes every solution.
+The Python word engine lives in `backend/`. It persists a deliberately small,
+curated solution list and previously checked dictionary words in SQLite at
+`backend/data/sumdle.db`. The database is created and seeded automatically and
+is intentionally not committed.
 
 Run the API with `uvicorn backend.app:app --reload` and the tests with
 `python -m pytest`. The puzzle endpoints intentionally return only puzzle
