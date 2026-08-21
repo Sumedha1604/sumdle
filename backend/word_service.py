@@ -8,6 +8,8 @@ import random
 from datetime import date as date_type
 from pathlib import Path
 
+from .mcp_client import get_word_definition as get_mcp_word_definition
+
 DATA_DIR = Path(__file__).resolve().parent / "data"
 
 
@@ -30,6 +32,22 @@ def normalize_guess(word: str) -> str:
 def is_valid_guess(word: str) -> bool:
     """Return whether the normalized input is in the accepted-guess set."""
     return normalize_guess(word) in VALID_GUESS_SET
+
+
+async def validate_with_fallback(word: str) -> dict[str, str | bool]:
+    """Validate locally first, using the optional MCP dictionary only on misses."""
+    normalized = normalize_guess(word)
+    if normalized in VALID_GUESS_SET:
+        return {"word": normalized, "valid": True, "source": "local"}
+    if len(normalized) != 5 or not normalized.isalpha():
+        return {"word": normalized, "valid": False, "source": "invalid"}
+    definition = await get_mcp_word_definition(normalized)
+    return {"word": normalized, "valid": definition is not None, "source": "mcp" if definition else "unavailable"}
+
+
+async def get_word_definition(word: str) -> dict | None:
+    """Get normalized dictionary data without coupling callers to MCP objects."""
+    return await get_mcp_word_definition(normalize_guess(word))
 
 
 def get_random_solution(exclude: set[str] | None = None) -> str:

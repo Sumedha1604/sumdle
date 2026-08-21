@@ -20,6 +20,27 @@ metadata, never a solution. The existing React game still evaluates guesses
 against its local word array, so it cannot use this non-revealing API for a
 complete game until answer evaluation moves server-side.
 
+### Optional MCP dictionary enrichment
+
+Sumdle validates its checked-in word bank first. It can optionally ask the
+[Word of the Day MCP server](https://github.com/Traves-Theberge/Word_of_the_day)
+about unknown five-letter words and retrieve definitions. Clone, install, and
+build that server separately, then configure its stdio command before starting
+the API:
+
+```sh
+export SUMDLE_MCP_COMMAND=node
+export SUMDLE_MCP_ARGS='["dist/index.js"]'
+export SUMDLE_MCP_CWD=/path/to/Word_of_the_day
+# Optional; defaults to 3 seconds.
+export SUMDLE_MCP_TIMEOUT_SECONDS=3
+```
+
+If `SUMDLE_MCP_COMMAND` is unset or the server is unavailable, local gameplay
+continues normally. `GET /api/words/{word}/lookup` reports the validation
+source, while `GET /api/words/{word}/definition` returns normalized dictionary
+data when available.
+
 # React + Vite
 
 This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
