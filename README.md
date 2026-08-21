@@ -1,3 +1,25 @@
+# Sumdle
+
+## Word engine
+
+The Python word engine lives in `backend/`. Its checked-in word banks are built
+from the local `web2` dictionary using:
+
+```bash
+python -m backend.word_bank_builder /usr/share/dict/web2
+```
+
+Replace that input with a reviewed, trustworthy open dictionary when updating
+the production bank. `solutions.json` comes from the deliberately curated
+answer candidates; `valid_guesses.json` is the larger normalized dictionary and
+always includes every solution.
+
+Run the API with `uvicorn backend.app:app --reload` and the tests with
+`python -m pytest`. The puzzle endpoints intentionally return only puzzle
+metadata, never a solution. The existing React game still evaluates guesses
+against its local word array, so it cannot use this non-revealing API for a
+complete game until answer evaluation moves server-side.
+
 # React + Vite
 
 This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.

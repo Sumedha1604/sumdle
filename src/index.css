@@ -2,5 +2,5 @@
 
 :root { --background: #fffaf7; --surface: #fffefd; --text: #493942; --muted: #987f8b; --pink: #f3c5d5; --pink-pale: #fbedf2; --rose: #c9879e; --lavender: #ddd2f2; --sage: #cbdcc5; --sage-deep: #91ad8c; --border: #eadde3; --body-font: 'DM Sans', sans-serif; --display-font: 'DM Serif Display', Georgia, serif; color: var(--text); font-family: var(--body-font); font-synthesis: none; text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
 * { box-sizing: border-box; }
-body { min-width: 280px; min-height: 100svh; margin: 0; background: var(--background); background-image: radial-gradient(circle at 50% 28%, rgba(255,255,255,.85), transparent 36%); }
+body { min-width: 280px; min-height: 100vh; min-height: 100dvh; margin: 0; overflow-x: hidden; background: var(--background); background-image: radial-gradient(circle at 50% 28%, rgba(255,255,255,.85), transparent 36%); }
 button { font: inherit; }
