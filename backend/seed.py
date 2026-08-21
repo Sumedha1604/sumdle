@@ -20,6 +20,6 @@ def seed_solutions(database_path: Path | str | None = None) -> None:
     """Insert curated answers idempotently without overwriting existing data."""
     with connect(database_path) as connection:
         connection.executemany(
-            "INSERT OR IGNORE INTO solutions (word, difficulty, active, created_at) VALUES (?, ?, 1, ?)",
+            "INSERT INTO solutions (word, difficulty, active, created_at) VALUES (?, ?, 1, ?) ON CONFLICT(word) DO NOTHING",
             [(word, "standard", now_iso()) for word in CURATED_SOLUTIONS],
         )

@@ -8,6 +8,7 @@ import './App.css'
 const MAX_ROWS = 6
 const REVEAL_DURATION = 820
 const GAME_MODE = { daily: 'daily', unlimited: 'unlimited' }
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '')
 const keyPriority = { unused: 0, absent: 1, present: 2, correct: 3 }
 const GAME_STATUS = { playing: 'playing', won: 'won', lost: 'lost' }
 
@@ -46,7 +47,7 @@ function App() {
       const endpoint = mode === GAME_MODE.daily
         ? '/api/puzzle/daily'
         : `/api/puzzle/random${previousSolution ? `?exclude=${encodeURIComponent(previousSolution)}` : ''}`
-      const response = await fetch(endpoint)
+      const response = await fetch(`${API_BASE_URL}${endpoint}`)
       if (!response.ok) throw new Error('Puzzle request failed')
       const puzzle = await response.json()
       if (!/^[a-z]{5}$/.test(puzzle.solution ?? '')) throw new Error('Invalid puzzle response')
@@ -76,7 +77,7 @@ function App() {
     const guess = currentGuess.toLowerCase()
     setIsSubmitting(true)
     try {
-      const response = await fetch(`/api/words/validate/${encodeURIComponent(guess)}`)
+      const response = await fetch(`${API_BASE_URL}/api/words/validate/${encodeURIComponent(guess)}`)
       if (!response.ok) throw new Error('Validation request failed')
       const validation = await response.json()
       if (validation.valid !== true) {

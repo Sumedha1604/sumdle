@@ -9,14 +9,13 @@ and, optionally, ``SUMDLE_MCP_ARGS`` (a JSON array), ``SUMDLE_MCP_CWD``, and
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
-import os
 import re
 from dataclasses import dataclass
 from typing import Any
 
 logger = logging.getLogger(__name__)
+from .config import get_settings
 
 
 class McpUnavailableError(RuntimeError):
@@ -32,23 +31,8 @@ class McpConfig:
 
     @classmethod
     def from_environment(cls) -> "McpConfig":
-        raw_args = os.getenv("SUMDLE_MCP_ARGS", "[]")
-        try:
-            parsed_args = json.loads(raw_args)
-            args = tuple(str(value) for value in parsed_args) if isinstance(parsed_args, list) else ()
-        except json.JSONDecodeError:
-            logger.warning("SUMDLE_MCP_ARGS must be a JSON array; MCP arguments ignored")
-            args = ()
-        try:
-            timeout = float(os.getenv("SUMDLE_MCP_TIMEOUT_SECONDS", "3"))
-        except ValueError:
-            timeout = 3.0
-        return cls(
-            command=os.getenv("SUMDLE_MCP_COMMAND") or None,
-            args=args,
-            cwd=os.getenv("SUMDLE_MCP_CWD") or None,
-            timeout_seconds=max(timeout, 0.1),
-        )
+        settings = get_settings()
+        return cls(settings.mcp_command, settings.mcp_args, settings.mcp_cwd, settings.mcp_timeout_seconds)
 
 
 def _definition_from_text(word: str, text: str) -> dict[str, Any] | None:

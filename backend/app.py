@@ -4,9 +4,11 @@ from contextlib import asynccontextmanager
 from datetime import date
 
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 
 from .mcp_client import McpUnavailableError
 from .database import initialize_database
+from .config import get_settings
 from .seed import seed_solutions
 from .word_service import NoActiveSolutionsError, get_daily_solution, get_random_solution, validate_with_fallback
 
@@ -19,6 +21,13 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(title="Sumdle word engine", lifespan=lifespan)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=list(get_settings().cors_origins),
+    allow_credentials=False,
+    allow_methods=["GET"],
+    allow_headers=["*"],
+)
 
 
 @app.get("/health")
