@@ -9,6 +9,56 @@ from backend.mcp_client import McpUnavailableError
 from backend.seed import CURATED_SOLUTIONS, seed_solutions
 
 
+class FakePsycopgCursor:
+    def __init__(self):
+        self.executemany_calls = []
+        self.closed = False
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        self.closed = True
+
+    def executemany(self, query, parameter_sets):
+        self.executemany_calls.append((query, parameter_sets))
+
+
+class FakePsycopgConnection:
+    def __init__(self):
+        self.cursor_instance = FakePsycopgCursor()
+        self.execute_calls = []
+        self.commits = 0
+
+    def execute(self, query, parameters):
+        self.execute_calls.append((query, parameters))
+
+    def cursor(self):
+        return self.cursor_instance
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, *args):
+        if exc_type is None:
+            self.commits += 1
+
+
+def test_postgresql_adapter_uses_cursor_for_bulk_execution_and_commits():
+    raw_connection = FakePsycopgConnection()
+    connection = database.DatabaseConnection(raw_connection, "postgresql")
+    values = [("apple",), ("beach",)]
+    with connection:
+        connection.execute("SELECT ?", ("word",))
+        connection.executemany("INSERT INTO solutions (word) VALUES (?)", values)
+    assert raw_connection.execute_calls == [("SELECT %s", ("word",))]
+    assert raw_connection.cursor_instance.executemany_calls == [
+        ("INSERT INTO solutions (word) VALUES (%s)", values)
+    ]
+    assert raw_connection.cursor_instance.closed
+    assert raw_connection.commits == 1
+
+
 @pytest.fixture
 def temporary_database(tmp_path, monkeypatch):
     path = tmp_path / "sumdle.db"

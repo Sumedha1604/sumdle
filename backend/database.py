@@ -21,11 +21,19 @@ class DatabaseConnection:
         self.dialect = dialect
 
     def execute(self, query: str, parameters: tuple | list = ()):
-        return self._connection.execute(query.replace("?", "%s") if self.dialect == "postgresql" else query, parameters)
+        return self._connection.execute(self._query(query), parameters)
 
     def executemany(self, query: str, parameter_sets: list[tuple]):
-        query = query.replace("?", "%s") if self.dialect == "postgresql" else query
-        return self._connection.executemany(query, parameter_sets)
+        query = self._query(query)
+        if self.dialect == "sqlite":
+            return self._connection.executemany(query, parameter_sets)
+        # psycopg exposes bulk execution on cursors, not Connection.
+        with self._connection.cursor() as cursor:
+            cursor.executemany(query, parameter_sets)
+
+    def _query(self, query: str) -> str:
+        """Translate the project's DB-API qmark placeholders for psycopg."""
+        return query.replace("?", "%s") if self.dialect == "postgresql" else query
 
     def __enter__(self) -> "DatabaseConnection":
         self._connection.__enter__()
