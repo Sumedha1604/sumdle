@@ -13,6 +13,10 @@ from .mcp_client import McpUnavailableError, get_word_definition as get_mcp_word
 from .seed import seed_solutions
 
 
+class NoActiveSolutionsError(RuntimeError):
+    """The curated puzzle list has no active entries."""
+
+
 def normalize_guess(word: str) -> str:
     return word.strip().lower() if isinstance(word, str) else ""
 
@@ -100,6 +104,8 @@ def solution_exists(word: str) -> bool:
 
 def get_random_solution(exclude: set[str] | None = None) -> str:
     solutions = get_all_active_solutions()
+    if not solutions:
+        raise NoActiveSolutionsError("No active solutions are available")
     excluded = {normalize_guess(word) for word in (exclude or set())}
     return random.choice(tuple(word for word in solutions if word not in excluded) or solutions)
 
@@ -109,5 +115,7 @@ def get_daily_solution(date: date_type | None = None) -> str:
     if not isinstance(puzzle_date, date_type):
         raise TypeError("date must be a datetime.date or None")
     solutions = get_all_active_solutions()
+    if not solutions:
+        raise NoActiveSolutionsError("No active solutions are available")
     digest = hashlib.sha256(puzzle_date.isoformat().encode("utf-8")).digest()
     return solutions[int.from_bytes(digest, byteorder="big") % len(solutions)]

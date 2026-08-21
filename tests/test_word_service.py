@@ -1,8 +1,10 @@
 import asyncio
+from datetime import date, timedelta
 
 import pytest
 
 from backend import database, word_service
+from backend.word_service import NoActiveSolutionsError
 from backend.mcp_client import McpUnavailableError
 from backend.seed import CURATED_SOLUTIONS, seed_solutions
 
@@ -35,6 +37,35 @@ def test_solution_service_uses_sqlite(temporary_database):
     assert word_service.solution_exists("APPLE")
     assert word_service.get_random_solution() in CURATED_SOLUTIONS
     assert set(word_service.get_all_active_solutions()) == set(CURATED_SOLUTIONS)
+
+
+def test_daily_solution_is_stable_and_uses_active_sorted_solutions(temporary_database):
+    puzzle_date = date(2026, 8, 21)
+    first = word_service.get_daily_solution(puzzle_date)
+    assert first == word_service.get_daily_solution(puzzle_date)
+    assert first in word_service.get_all_active_solutions()
+
+
+def test_daily_selection_can_vary_between_dates(temporary_database):
+    first = word_service.get_daily_solution(date(2026, 1, 1))
+    assert any(word_service.get_daily_solution(date(2026, 1, 1) + timedelta(days=offset)) != first for offset in range(1, 30))
+
+
+def test_random_solution_is_active_and_skips_exclusion_when_possible(temporary_database):
+    solution = word_service.get_random_solution({"apple"})
+    assert solution in word_service.get_all_active_solutions()
+    assert solution != "apple"
+
+
+def test_inactive_or_empty_solutions_are_never_selected(temporary_database):
+    word_service.get_all_active_solutions()
+    with database.connect() as connection:
+        connection.execute("UPDATE solutions SET active = 0")
+    assert word_service.get_all_active_solutions() == ()
+    with pytest.raises(NoActiveSolutionsError):
+        word_service.get_daily_solution(date(2026, 1, 1))
+    with pytest.raises(NoActiveSolutionsError):
+        word_service.get_random_solution()
 
 
 def test_malformed_input_skips_mcp(temporary_database, monkeypatch):

@@ -8,10 +8,11 @@ curated solution list and previously checked dictionary words in SQLite at
 is intentionally not committed.
 
 Run the API with `uvicorn backend.app:app --reload` and the tests with
-`python -m pytest`. The puzzle endpoints intentionally return only puzzle
-metadata, never a solution. The existing React game still evaluates guesses
-against its local word array, so it cannot use this non-revealing API for a
-complete game until answer evaluation moves server-side.
+`python -m pytest`. Daily puzzles are selected using the backend server's date,
+SHA-256 of that ISO date, and alphabetically ordered active solutions. The
+current React evaluator runs in the browser, so the puzzle APIs return the
+solution for gameplay; this is not a security boundary and should be replaced
+with server-side guess evaluation before answers need to be secret.
 
 ### Optional MCP dictionary enrichment
 
