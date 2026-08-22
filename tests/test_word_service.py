@@ -339,3 +339,120 @@ def test_http_invalid_and_unavailable_results(temporary_database, monkeypatch):
     assert asyncio.run(word_service.validate_with_fallback("stork"))["valid"] is None
     with database.connect() as connection:
         assert connection.execute("SELECT 1 FROM word_validation_cache WHERE word = 'stork'").fetchone() is None
+
+
+def test_cached_valid_word_missing_metadata_falls_back_to_http_and_is_returned(temporary_database, monkeypatch):
+    monkeypatch.setenv("SUMDLE_DICTIONARY_HTTP_URL", "https://dictionary.example")
+    calls = 0
+
+    async def external(word):
+        nonlocal calls
+        calls += 1
+        assert word == "plant"
+        return {"word": word, "definitions": [{"part_of_speech": "noun", "definition": "a living organism of the kind exemplified by trees"}], "examples": [], "phonetic": "plɑːnt"}
+
+    monkeypatch.setattr(word_service, "get_http_word_definition", external)
+
+    seed_solutions()
+    with database.connect() as connection:
+        seeded = connection.execute("SELECT valid, definition FROM word_validation_cache WHERE word = 'plant'").fetchone()
+    assert seeded["valid"] == 1 and seeded["definition"] is None
+
+    definition = asyncio.run(word_service.get_word_definition("plant"))
+    assert calls == 1
+    assert definition["definitions"][0]["definition"] == "a living organism of the kind exemplified by trees"
+    assert definition["phonetic"] == "plɑːnt"
+
+
+def test_enriched_metadata_is_persisted_and_reused_without_another_http_call(temporary_database, monkeypatch):
+    monkeypatch.setenv("SUMDLE_DICTIONARY_HTTP_URL", "https://dictionary.example")
+    calls = 0
+
+    async def external(word):
+        nonlocal calls
+        calls += 1
+        return {"word": word, "definitions": [{"part_of_speech": "noun", "definition": "a living organism of the kind exemplified by trees"}], "examples": []}
+
+    monkeypatch.setattr(word_service, "get_http_word_definition", external)
+
+    first = asyncio.run(word_service.get_word_definition("plant"))
+    with database.connect() as connection:
+        row = connection.execute("SELECT valid, definition FROM word_validation_cache WHERE word = 'plant'").fetchone()
+    assert row["valid"] == 1 and "living organism" in row["definition"]
+
+    second = asyncio.run(word_service.get_word_definition("plant"))
+    assert second == first
+    assert calls == 1  # cache now serves the enriched row; no repeat HTTP call
+
+
+def test_completed_game_definition_for_seeded_word_uses_dictionary_enrichment(temporary_database, monkeypatch):
+    monkeypatch.setenv("SUMDLE_DICTIONARY_HTTP_URL", "https://dictionary.example")
+
+    async def valid_guess(word):
+        return {"word": word, "valid": True, "source": "cache"}
+
+    monkeypatch.setattr(game_service, "validate_with_fallback", valid_guess)
+
+    async def external(word):
+        assert word == "plant"
+        return {"word": word, "definitions": [{"part_of_speech": "noun", "definition": "a living organism of the kind exemplified by trees"}], "examples": [], "phonetic": "plɑːnt"}
+
+    monkeypatch.setattr(word_service, "get_http_word_definition", external)
+
+    game = game_service.start_game("6e349c1e-e299-4b8f-af1b-7c0f87d41f36", "unlimited")
+    with database.connect() as connection:
+        connection.execute("UPDATE game_sessions SET solution = 'plant' WHERE id = ?", (game["game_id"],))
+    asyncio.run(game_service.submit_guess(game["game_id"], "plant"))
+
+    result = asyncio.run(game_service.get_definition(game["game_id"]))
+    assert result == {
+        "word": "plant",
+        "available": True,
+        "part_of_speech": "noun",
+        "definition": "a living organism of the kind exemplified by trees",
+        "phonetic": "plɑːnt",
+    }
+
+
+def test_definition_dictionary_outage_returns_graceful_unavailable_response(temporary_database, monkeypatch):
+    monkeypatch.setenv("SUMDLE_DICTIONARY_HTTP_URL", "https://dictionary.example")
+
+    async def valid_guess(word):
+        return {"word": word, "valid": True, "source": "cache"}
+
+    monkeypatch.setattr(game_service, "validate_with_fallback", valid_guess)
+
+    async def unavailable(word):
+        raise McpUnavailableError("offline")
+
+    monkeypatch.setattr(word_service, "get_http_word_definition", unavailable)
+
+    game = game_service.start_game("6e349c1e-e299-4b8f-af1b-7c0f87d41f37", "unlimited")
+    with database.connect() as connection:
+        connection.execute("UPDATE game_sessions SET solution = 'plant' WHERE id = ?", (game["game_id"],))
+    asyncio.run(game_service.submit_guess(game["game_id"], "plant"))
+
+    result = asyncio.run(game_service.get_definition(game["game_id"]))
+    assert result == {"word": "plant", "available": False}
+
+
+def test_definition_remains_inaccessible_while_game_is_playing(temporary_database):
+    game = game_service.start_game("6e349c1e-e299-4b8f-af1b-7c0f87d41f38", "unlimited")
+    with pytest.raises(PermissionError):
+        asyncio.run(game_service.get_definition(game["game_id"]))
+
+
+def test_hint_enrichment_works_for_seeded_words_missing_metadata(temporary_database, monkeypatch):
+    monkeypatch.setenv("SUMDLE_DICTIONARY_HTTP_URL", "https://dictionary.example")
+
+    async def external(word):
+        assert word == "plant"
+        return {"word": word, "definitions": [{"part_of_speech": "noun", "definition": "a living organism of the kind exemplified by trees"}], "examples": []}
+
+    monkeypatch.setattr(word_service, "get_http_word_definition", external)
+
+    game = game_service.start_game("6e349c1e-e299-4b8f-af1b-7c0f87d41f39", "unlimited")
+    with database.connect() as connection:
+        connection.execute("UPDATE game_sessions SET solution = 'plant' WHERE id = ?", (game["game_id"],))
+    hint = asyncio.run(game_service.get_hint(game["game_id"], 1))
+    assert hint == {"hint_count": 1, "hint": "this word is commonly used as a noun", "available": True}

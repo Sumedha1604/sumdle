@@ -13,6 +13,25 @@ from .mcp_client import McpUnavailableError
 logger = logging.getLogger(__name__)
 
 
+def _sanitize_text(value: Any) -> str | None:
+    if not isinstance(value, str):
+        return None
+    cleaned = " ".join(value.split())
+    return cleaned or None
+
+
+def _extract_phonetic(entry: dict[str, Any]) -> str | None:
+    phonetic = _sanitize_text(entry.get("phonetic"))
+    if phonetic:
+        return phonetic
+    for item in entry.get("phonetics", []) or []:
+        if isinstance(item, dict):
+            phonetic = _sanitize_text(item.get("text"))
+            if phonetic:
+                return phonetic
+    return None
+
+
 async def get_word_definition(word: str) -> dict[str, Any] | None:
     """Return a normalized definition, None for a confirmed miss, or raise if unavailable."""
     settings = get_settings()
@@ -44,9 +63,21 @@ async def get_word_definition(word: str) -> dict[str, Any] | None:
     for meaning in entry.get("meanings", []):
         if not isinstance(meaning, dict):
             continue
+        part_of_speech = _sanitize_text(meaning.get("partOfSpeech"))
         for item in meaning.get("definitions", []):
-            if isinstance(item, dict) and item.get("definition"):
-                definitions.append({"part_of_speech": meaning.get("partOfSpeech"), "definition": str(item["definition"])})
-                if item.get("example"):
-                    examples.append(str(item["example"]))
-    return {"word": word, "definitions": definitions, "examples": examples} if definitions else None
+            if not isinstance(item, dict):
+                continue
+            text = _sanitize_text(item.get("definition"))
+            if not text:
+                continue
+            definitions.append({"part_of_speech": part_of_speech, "definition": text})
+            example = _sanitize_text(item.get("example"))
+            if example:
+                examples.append(example)
+    if not definitions:
+        return None
+    result: dict[str, Any] = {"word": word, "definitions": definitions, "examples": examples}
+    phonetic = _extract_phonetic(entry)
+    if phonetic:
+        result["phonetic"] = phonetic
+    return result

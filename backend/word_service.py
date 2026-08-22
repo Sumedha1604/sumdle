@@ -79,13 +79,27 @@ async def validate_with_fallback(word: str) -> dict[str, str | bool | None]:
 
 
 async def get_word_definition(word: str) -> dict[str, Any] | None:
+    """Cache-first definition lookup that enriches known-valid words missing metadata.
+
+    A cache row can be ``valid`` without carrying definition metadata (e.g. the
+    seeded fallback list). Such a row must not be treated as a final "no
+    definition" answer — fall through to the external dictionary and persist
+    what it returns, without downgrading the word's already-established validity.
+    """
     normalized = normalize_guess(word)
     if not is_structurally_valid(normalized):
         return None
     _prepare()
     cached = _cached_validation(normalized)
     if cached is not None:
-        return cached.get("definition")
+        if cached.get("definition"):
+            return cached["definition"]
+        if not cached["valid"]:
+            return None
+        definition = await (get_http_word_definition(normalized) if get_settings().dictionary_http_url else get_mcp_word_definition(normalized))
+        if definition:
+            _store_validation(normalized, True, definition)
+        return definition
     definition = await (get_http_word_definition(normalized) if get_settings().dictionary_http_url else get_mcp_word_definition(normalized))
     _store_validation(normalized, definition is not None, definition)
     return definition
