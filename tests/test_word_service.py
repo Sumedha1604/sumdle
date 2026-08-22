@@ -63,6 +63,7 @@ def test_postgresql_adapter_uses_cursor_for_bulk_execution_and_commits():
 def temporary_database(tmp_path, monkeypatch):
     path = tmp_path / "sumdle.db"
     monkeypatch.setattr(database, "DATABASE_PATH", path)
+    monkeypatch.setenv("SUMDLE_DICTIONARY_HTTP_URL", "")
     return path
 
 
@@ -269,3 +270,34 @@ def test_cached_words_work_during_mcp_outage(temporary_database, monkeypatch):
 
     monkeypatch.setattr(word_service, "get_mcp_word_definition", unavailable)
     assert asyncio.run(word_service.validate_with_fallback("FORGE")) == {"word": "forge", "valid": True, "source": "cache"}
+
+
+def test_http_dictionary_results_are_cached(temporary_database, monkeypatch):
+    monkeypatch.setenv("SUMDLE_DICTIONARY_HTTP_URL", "https://dictionary.example")
+
+    async def external(word):
+        assert word == "stare"
+        return {"word": word, "definitions": [{"definition": "to look fixedly"}], "examples": []}
+
+    monkeypatch.setattr(word_service, "get_http_word_definition", external)
+    assert asyncio.run(word_service.validate_with_fallback("STARE")) == {"word": "stare", "valid": True, "source": "http"}
+    assert asyncio.run(word_service.validate_with_fallback("stare")) == {"word": "stare", "valid": True, "source": "cache"}
+
+
+def test_http_invalid_and_unavailable_results(temporary_database, monkeypatch):
+    monkeypatch.setenv("SUMDLE_DICTIONARY_HTTP_URL", "https://dictionary.example")
+
+    async def invalid(word):
+        return None
+
+    monkeypatch.setattr(word_service, "get_http_word_definition", invalid)
+    assert asyncio.run(word_service.validate_with_fallback("qzqzx")) == {"word": "qzqzx", "valid": False, "source": "http"}
+    assert asyncio.run(word_service.validate_with_fallback("qzqzx")) == {"word": "qzqzx", "valid": False, "source": "cache"}
+
+    async def unavailable(word):
+        raise McpUnavailableError("timeout")
+
+    monkeypatch.setattr(word_service, "get_http_word_definition", unavailable)
+    assert asyncio.run(word_service.validate_with_fallback("stork"))["valid"] is None
+    with database.connect() as connection:
+        assert connection.execute("SELECT 1 FROM word_validation_cache WHERE word = 'stork'").fetchone() is None

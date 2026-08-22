@@ -10,6 +10,8 @@ from typing import Any
 
 from . import database
 from .mcp_client import McpUnavailableError, get_word_definition as get_mcp_word_definition
+from .http_dictionary import get_word_definition as get_http_word_definition
+from .config import get_settings
 from .seed import seed_solutions
 
 
@@ -59,7 +61,7 @@ def _store_validation(word: str, valid: bool, definition: dict[str, Any] | None)
 
 
 async def validate_with_fallback(word: str) -> dict[str, str | bool | None]:
-    """Validate with SQLite first, querying MCP only for uncached valid shapes."""
+    """Validate cache-first, then HTTP in production or MCP when HTTP is disabled."""
     normalized = normalize_guess(word)
     if not is_structurally_valid(normalized):
         return {"word": normalized, "valid": False, "source": "invalid"}
@@ -68,12 +70,12 @@ async def validate_with_fallback(word: str) -> dict[str, str | bool | None]:
     if cached is not None:
         return {key: value for key, value in cached.items() if key != "definition"}
     try:
-        definition = await get_mcp_word_definition(normalized)
+        definition = await (get_http_word_definition(normalized) if get_settings().dictionary_http_url else get_mcp_word_definition(normalized))
     except McpUnavailableError:
         return {"word": normalized, "valid": None, "source": "unavailable", "reason": "dictionary_lookup_unavailable"}
     valid = definition is not None
     _store_validation(normalized, valid, definition)
-    return {"word": normalized, "valid": valid, "source": "mcp"}
+    return {"word": normalized, "valid": valid, "source": "http" if get_settings().dictionary_http_url else "mcp"}
 
 
 async def get_word_definition(word: str) -> dict[str, Any] | None:
@@ -84,7 +86,7 @@ async def get_word_definition(word: str) -> dict[str, Any] | None:
     cached = _cached_validation(normalized)
     if cached is not None:
         return cached.get("definition")
-    definition = await get_mcp_word_definition(normalized)
+    definition = await (get_http_word_definition(normalized) if get_settings().dictionary_http_url else get_mcp_word_definition(normalized))
     _store_validation(normalized, definition is not None, definition)
     return definition
 

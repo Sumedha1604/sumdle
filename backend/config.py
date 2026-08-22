@@ -22,6 +22,8 @@ class Settings:
     mcp_args: tuple[str, ...]
     mcp_cwd: str | None
     mcp_timeout_seconds: float
+    dictionary_http_url: str | None
+    dictionary_http_timeout_seconds: float
 
 
 def get_settings() -> Settings:
@@ -36,4 +38,8 @@ def get_settings() -> Settings:
         timeout = max(float(os.getenv("SUMDLE_MCP_TIMEOUT_SECONDS", "3")), 0.1)
     except ValueError:
         timeout = 3.0
-    return Settings(os.getenv("DATABASE_URL") or None, _origins(os.getenv("CORS_ORIGINS")), os.getenv("SUMDLE_MCP_COMMAND") or None, mcp_args, os.getenv("SUMDLE_MCP_CWD") or None, timeout)
+    try:
+        http_timeout = max(float(os.getenv("SUMDLE_DICTIONARY_HTTP_TIMEOUT_SECONDS", "3")), 0.1)
+    except ValueError:
+        http_timeout = 3.0
+    return Settings(os.getenv("DATABASE_URL") or None, _origins(os.getenv("CORS_ORIGINS")), os.getenv("SUMDLE_MCP_COMMAND") or None, mcp_args, os.getenv("SUMDLE_MCP_CWD") or None, timeout, os.getenv("SUMDLE_DICTIONARY_HTTP_URL", "https://api.dictionaryapi.dev/api/v2/entries/en") or None, http_timeout)

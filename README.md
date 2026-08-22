@@ -26,6 +26,8 @@ needed. Never commit `.env` files or production connection strings.
 | `SUMDLE_MCP_ARGS` | Backend | Optional JSON argument array for that executable. |
 | `SUMDLE_MCP_CWD` | Backend | Optional MCP working directory. |
 | `SUMDLE_MCP_TIMEOUT_SECONDS` | Backend | Optional lookup timeout; defaults to `3`. |
+| `SUMDLE_DICTIONARY_HTTP_URL` | Backend | Production HTTP validator base URL; defaults to DictionaryAPI.dev. Set blank to use MCP only. |
+| `SUMDLE_DICTIONARY_HTTP_TIMEOUT_SECONDS` | Backend | HTTP validator timeout; defaults to `3`. |
 
 ## Database Configuration
 
@@ -84,6 +86,19 @@ of SQLite.
 The frontend has no production localhost default: it reads
 `VITE_API_BASE_URL`, while the local Vite proxy remains available for
 development.
+
+## Dictionary validation
+
+Production validation is cache-first: `word_validation_cache` → the keyless
+[DictionaryAPI.dev](https://dictionaryapi.dev/) HTTP API → cache the confirmed
+valid or invalid result. Network failures are returned as unavailable and are
+never cached as invalid, so they never consume a game attempt. This works
+directly on Render and needs no API key or subprocess. `STARE`, for example,
+is resolved by the HTTP service on its first cache miss and then served from
+Neon thereafter.
+
+Set `SUMDLE_DICTIONARY_HTTP_URL` to an empty string only when you explicitly
+want local MCP-only validation.
 
 ## MCP Configuration
 
