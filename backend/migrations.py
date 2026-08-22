@@ -16,6 +16,10 @@ def apply_migrations(connection, dialect: str) -> None:
         "CREATE TABLE IF NOT EXISTS players (id TEXT PRIMARY KEY, created_at TEXT NOT NULL, last_seen_at TEXT)",
         f"CREATE TABLE IF NOT EXISTS game_results (id {identity}, player_id TEXT NOT NULL REFERENCES players(id), mode TEXT NOT NULL CHECK(mode IN ('daily', 'unlimited')), puzzle_date TEXT, solution_id TEXT NOT NULL, won INTEGER NOT NULL CHECK(won IN (0, 1)), attempts INTEGER NOT NULL CHECK(attempts BETWEEN 1 AND 6), completed_at TEXT NOT NULL, UNIQUE(player_id, mode, puzzle_date))",
         "CREATE INDEX IF NOT EXISTS game_results_player_completed_idx ON game_results(player_id, completed_at)",
+    ), 3: (
+        "CREATE TABLE IF NOT EXISTS game_sessions (id TEXT PRIMARY KEY, player_id TEXT NOT NULL REFERENCES players(id), mode TEXT NOT NULL CHECK(mode IN ('daily', 'unlimited')), puzzle_date TEXT, solution TEXT NOT NULL, status TEXT NOT NULL CHECK(status IN ('playing', 'won', 'lost')), attempts INTEGER NOT NULL DEFAULT 0 CHECK(attempts BETWEEN 0 AND 6), created_at TEXT NOT NULL, completed_at TEXT, UNIQUE(player_id, mode, puzzle_date))",
+        f"CREATE TABLE IF NOT EXISTS game_guesses (id {identity}, game_id TEXT NOT NULL REFERENCES game_sessions(id) ON DELETE CASCADE, guess TEXT NOT NULL, result TEXT NOT NULL, attempt_number INTEGER NOT NULL, created_at TEXT NOT NULL, UNIQUE(game_id, attempt_number))",
+        "CREATE INDEX IF NOT EXISTS game_sessions_player_idx ON game_sessions(player_id, created_at)",
     )}
     for version, statements in migrations.items():
         if version not in applied:

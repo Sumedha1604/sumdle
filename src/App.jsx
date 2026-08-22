@@ -3,7 +3,6 @@ import GameBoard from './components/GameBoard.jsx'
 import GameKeyboard from './components/GameKeyboard.jsx'
 import GameResult from './components/GameResult.jsx'
 import StatsModal from './components/StatsModal.jsx'
-import { evaluateGuess } from './utils/evaluateGuess.js'
 import './App.css'
 
 const MAX_ROWS = 6
@@ -28,6 +27,7 @@ function StatsIcon() {
 function App() {
   const [gameMode, setGameMode] = useState(GAME_MODE.daily)
   const [solution, setSolution] = useState('')
+  const [gameId, setGameId] = useState('')
   const [currentRow, setCurrentRow] = useState(0)
   const [currentGuess, setCurrentGuess] = useState('')
   const [submittedGuesses, setSubmittedGuesses] = useState([])
@@ -36,7 +36,6 @@ function App() {
   const [showResult, setShowResult] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [puzzleDate, setPuzzleDate] = useState(null)
   const [playerId] = useState(() => {
     const key = 'sumdle_player_id'
     const existing = window.localStorage.getItem(key)
@@ -59,25 +58,23 @@ function App() {
     setShowResult(false)
   }, [])
 
-  const loadPuzzle = useCallback(async (mode, previousSolution = '') => {
+  const applyGame = useCallback((game) => {
+    setGameId(game.game_id); setSubmittedGuesses(game.guesses); setCurrentRow(game.attempts); setGameStatus(game.status); setSolution(game.solution ?? '')
+  }, [])
+
+  const loadPuzzle = useCallback(async (mode) => {
     setIsLoading(true)
     try {
-      const endpoint = mode === GAME_MODE.daily
-        ? '/api/puzzle/daily'
-        : `/api/puzzle/random${previousSolution ? `?exclude=${encodeURIComponent(previousSolution)}` : ''}`
-      const response = await fetch(`${API_BASE_URL}${endpoint}`)
+      const response = await fetch(`${API_BASE_URL}/api/games/${mode}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ player_id: playerId }) })
       if (!response.ok) throw new Error('Puzzle request failed')
-      const puzzle = await response.json()
-      if (!/^[a-z]{5}$/.test(puzzle.solution ?? '')) throw new Error('Invalid puzzle response')
-      setSolution(puzzle.solution)
-      setPuzzleDate(puzzle.date ?? null)
+      applyGame(await response.json())
     } catch {
-      setSolution('')
+      setGameId('')
       setMessage("couldn't load a puzzle right now")
     } finally {
       setIsLoading(false)
     }
-  }, [])
+  }, [applyGame, playerId])
 
   useEffect(() => {
     const loadId = window.setTimeout(() => loadPuzzle(GAME_MODE.daily), 0)
@@ -107,28 +104,26 @@ function App() {
   }, [gameMode, loadPuzzle, resetGame])
 
   const submitGuess = useCallback(async () => {
-    if (isLoading || isSubmitting || gameStatus !== GAME_STATUS.playing || currentGuess.length !== 5 || !solution) return
+    if (isLoading || isSubmitting || gameStatus !== GAME_STATUS.playing || currentGuess.length !== 5 || !gameId) return
     const guess = currentGuess.toLowerCase()
     setIsSubmitting(true)
     try {
-      const response = await fetch(`${API_BASE_URL}/api/words/validate/${encodeURIComponent(guess)}`)
+      const response = await fetch(`${API_BASE_URL}/api/games/${encodeURIComponent(gameId)}/guess`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ guess }) })
       if (!response.ok) throw new Error('Validation request failed')
-      const validation = await response.json()
-      if (validation.valid !== true) {
-        setMessage(validation.source === 'unavailable' ? 'dictionary is taking a little break' : 'not in the word list')
+      const game = await response.json()
+      if (!game.accepted) {
+        setMessage(game.message)
         return
       }
-      setSubmittedGuesses((guesses) => [...guesses, { word: guess, result: evaluateGuess(guess, solution) }])
+      applyGame(game)
       setCurrentGuess('')
-      setCurrentRow((row) => row + 1)
-      if (guess === solution) setGameStatus(GAME_STATUS.won)
-      else if (currentRow === MAX_ROWS - 1) setGameStatus(GAME_STATUS.lost)
+      if (game.stats) setStats(game.stats)
     } catch {
       setMessage('could not check that word right now')
     } finally {
       setIsSubmitting(false)
     }
-  }, [currentGuess, currentRow, gameStatus, isLoading, isSubmitting, solution])
+  }, [applyGame, currentGuess, gameId, gameStatus, isLoading, isSubmitting])
 
   const handleInput = useCallback((key) => {
     if (isLoading || isSubmitting || gameStatus !== GAME_STATUS.playing || currentRow >= MAX_ROWS) return
@@ -160,21 +155,12 @@ function App() {
     return () => window.clearTimeout(timeoutId)
   }, [gameStatus])
 
-  useEffect(() => {
-    if (gameStatus === GAME_STATUS.playing || !solution) return
-    const attempts = submittedGuesses.length
-    fetch(`${API_BASE_URL}/api/game-results`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ player_id: playerId, mode: gameMode, attempts, won: gameStatus === GAME_STATUS.won, puzzle_date: puzzleDate, solution }) })
-      .then((response) => response.ok ? response.json() : Promise.reject())
-      .then((result) => setStats(result.stats))
-      .catch(() => {})
-  }, [gameMode, gameStatus, playerId, puzzleDate, solution, submittedGuesses.length])
-
   const playAgain = useCallback(() => {
     if (gameMode === GAME_MODE.unlimited) {
       resetGame()
-      loadPuzzle(GAME_MODE.unlimited, solution)
+      loadPuzzle(GAME_MODE.unlimited)
     } else switchMode(GAME_MODE.unlimited)
-  }, [gameMode, loadPuzzle, resetGame, solution, switchMode])
+  }, [gameMode, loadPuzzle, resetGame, switchMode])
 
   const keyStates = useMemo(() => submittedGuesses.reduce((states, guess) => {
     guess.word.toUpperCase().split('').forEach((letter, index) => {
@@ -193,7 +179,7 @@ function App() {
       <p className="status-strip">{isLoading ? 'loading puzzle...' : gameMode === GAME_MODE.daily ? "today's puzzle" : 'unlimited puzzle'} <span>·</span> 5 letters</p>
       <p className={`game-message${message ? ' game-message--visible' : ''}`} role="status" aria-live="polite">{message}</p>
       <div className="board-area"><GameBoard currentGuess={currentGuess} currentRow={currentRow} submittedGuesses={submittedGuesses} /></div>
-      <GameKeyboard disabled={isLoading || isSubmitting || gameStatus !== GAME_STATUS.playing || !solution} keyStates={keyStates} onKeyPress={handleInput} />
+      <GameKeyboard disabled={isLoading || isSubmitting || gameStatus !== GAME_STATUS.playing || !gameId} keyStates={keyStates} onKeyPress={handleInput} />
       <footer className="game-footer">made with <span aria-label="love">♡</span></footer>
     </section>
     {showResult && <GameResult attempts={submittedGuesses.length} gameMode={gameMode} gameStatus={gameStatus} onPlayAgain={playAgain} solution={solution} streak={gameMode === GAME_MODE.daily ? stats?.current_streak : null} />}

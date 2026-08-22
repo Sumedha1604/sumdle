@@ -3,7 +3,7 @@ from datetime import date, timedelta
 
 import pytest
 
-from backend import database, player_stats, word_service
+from backend import database, game_service, player_stats, word_service
 from backend.word_service import NoActiveSolutionsError
 from backend.mcp_client import McpUnavailableError
 from backend.seed import CURATED_SOLUTIONS, FALLBACK_VALID_GUESSES, seed_solutions
@@ -98,6 +98,53 @@ def test_unlimited_and_duplicate_daily_results(temporary_database):
     stats = player_stats.get_stats(player)
     assert stats["games_played"] == 2 and stats["games_won"] == 1
     assert stats["current_streak"] == stats["max_streak"] == 1
+
+
+def test_server_game_sessions_are_authoritative(temporary_database, monkeypatch):
+    player = "6e349c1e-e299-4b8f-af1b-7c0f87d41f31"
+
+    async def valid_guess(word):
+        return {"word": word, "valid": True, "source": "cache"}
+
+    monkeypatch.setattr(game_service, "validate_with_fallback", valid_guess)
+    game = game_service.start_game(player, "unlimited")
+    assert "solution" not in game and game["status"] == "playing" and game["attempts"] == 0
+    with database.connect() as connection:
+        solution = connection.execute("SELECT solution FROM game_sessions WHERE id = ?", (game["game_id"],)).fetchone()["solution"]
+    result = asyncio.run(game_service.submit_guess(game["game_id"], solution))
+    assert result["status"] == "won" and result["attempts"] == 1 and result["solution"] == solution
+    assert result["guesses"][0]["result"] == ["correct"] * 5
+    assert player_stats.get_stats(player)["games_won"] == 1
+    with pytest.raises(ValueError):
+        asyncio.run(game_service.submit_guess(game["game_id"], solution))
+
+
+def test_sessions_count_only_valid_guesses_and_daily_resumes(temporary_database, monkeypatch):
+    player = "6e349c1e-e299-4b8f-af1b-7c0f87d41f32"
+
+    async def invalid_guess(word):
+        return {"word": word, "valid": False, "source": "cache"}
+
+    monkeypatch.setattr(game_service, "validate_with_fallback", invalid_guess)
+    daily = game_service.start_game(player, "daily")
+    invalid = asyncio.run(game_service.submit_guess(daily["game_id"], "zzzzz"))
+    assert not invalid["accepted"] and invalid["attempts"] == 0
+    assert game_service.start_game(player, "daily")["game_id"] == daily["game_id"]
+
+
+def test_duplicate_letters_and_six_attempt_loss(temporary_database, monkeypatch):
+    assert game_service.evaluate_guess("poppy", "apple") == ["present", "absent", "correct", "absent", "absent"]
+
+    async def valid_guess(word):
+        return {"word": word, "valid": True, "source": "cache"}
+
+    monkeypatch.setattr(game_service, "validate_with_fallback", valid_guess)
+    game = game_service.start_game("6e349c1e-e299-4b8f-af1b-7c0f87d41f33", "unlimited")
+    with database.connect() as connection:
+        connection.execute("UPDATE game_sessions SET solution = 'apple' WHERE id = ?", (game["game_id"],))
+    for _ in range(6):
+        result = asyncio.run(game_service.submit_guess(game["game_id"], "beach"))
+    assert result["status"] == "lost" and result["attempts"] == 6 and result["solution"] == "apple"
 
 
 def test_seed_is_idempotent_and_unique(temporary_database):

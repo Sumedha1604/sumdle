@@ -1,7 +1,6 @@
 """HTTP interface for the Sumdle word engine."""
 
 from contextlib import asynccontextmanager
-from datetime import date
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -11,8 +10,9 @@ from .mcp_client import McpUnavailableError
 from .database import initialize_database
 from .config import get_settings
 from .seed import seed_solutions
-from .word_service import NoActiveSolutionsError, get_daily_solution, get_random_solution, validate_with_fallback
-from .player_stats import get_stats, record_result, register_player
+from .word_service import validate_with_fallback
+from .player_stats import get_stats, register_player
+from .game_service import get_game, start_game, submit_guess
 
 
 @asynccontextmanager
@@ -36,13 +36,12 @@ class PlayerIdentity(BaseModel):
     player_id: str
 
 
-class GameResultPayload(BaseModel):
+class StartGamePayload(BaseModel):
     player_id: str
-    mode: str
-    attempts: int
-    won: bool
-    puzzle_date: str | None = None
-    solution: str
+
+
+class GuessPayload(BaseModel):
+    guess: str
 
 
 @app.get("/health")
@@ -66,12 +65,40 @@ def player_stats(player_id: str) -> dict:
         raise HTTPException(status_code=422, detail=str(error)) from error
 
 
-@app.post("/api/game-results")
-def create_game_result(payload: GameResultPayload) -> dict:
+@app.post("/api/games/daily")
+def start_daily_game(payload: StartGamePayload) -> dict:
     try:
-        return record_result(**payload.model_dump())
+        return start_game(payload.player_id, "daily")
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
+
+
+@app.post("/api/games/unlimited")
+def start_unlimited_game(payload: StartGamePayload) -> dict:
+    try:
+        return start_game(payload.player_id, "unlimited")
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+
+
+@app.get("/api/games/{game_id}")
+def game(game_id: str) -> dict:
+    try:
+        return get_game(game_id)
+    except LookupError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+
+
+@app.post("/api/games/{game_id}/guess")
+async def guess(game_id: str, payload: GuessPayload) -> dict:
+    try:
+        return await submit_guess(game_id, payload.guess)
+    except LookupError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    except ValueError as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
 
 
 @app.get("/api/words/validate/{word}")
@@ -94,25 +121,3 @@ async def word_definition(word: str) -> dict:
     if definition is None:
         return {"word": normalized, "found": False, "source": "mcp"}
     return {**definition, "found": True, "source": "mcp"}
-
-
-@app.get("/api/puzzle/daily")
-def daily_puzzle() -> dict[str, str]:
-    """Return the server-calendar daily puzzle for the current client evaluator."""
-    puzzle_date = date.today()
-    try:
-        solution = get_daily_solution(puzzle_date)
-    except NoActiveSolutionsError as error:
-        raise HTTPException(status_code=503, detail="No daily puzzle is available") from error
-    # The React evaluator currently runs in the browser, so this is not a
-    # security boundary. Move evaluation server-side before treating answers as secret.
-    return {"mode": "daily", "date": puzzle_date.isoformat(), "puzzle_id": puzzle_date.isoformat(), "solution": solution}
-
-
-@app.get("/api/puzzle/random")
-def random_puzzle(exclude: str | None = None) -> dict[str, str]:
-    try:
-        solution = get_random_solution({exclude} if exclude else None)
-    except NoActiveSolutionsError as error:
-        raise HTTPException(status_code=503, detail="No random puzzle is available") from error
-    return {"mode": "unlimited", "solution": solution}
