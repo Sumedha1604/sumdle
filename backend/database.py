@@ -63,6 +63,7 @@ def _open_connection(database_path: Path | str | None = None) -> DatabaseConnect
         path.parent.mkdir(parents=True, exist_ok=True)
         connection = sqlite3.connect(path)
         connection.row_factory = sqlite3.Row
+        connection.execute("PRAGMA foreign_keys = ON")
         return DatabaseConnection(connection, dialect)
     try:
         import psycopg

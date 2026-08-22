@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import GameBoard from './components/GameBoard.jsx'
 import GameKeyboard from './components/GameKeyboard.jsx'
 import GameResult from './components/GameResult.jsx'
+import StatsModal from './components/StatsModal.jsx'
 import { evaluateGuess } from './utils/evaluateGuess.js'
 import './App.css'
 
@@ -20,6 +21,10 @@ function SettingsIcon() {
   return <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.03 2.03-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1.03 1.56v.1h-2.87v-.1a1.7 1.7 0 0 0-1.03-1.56 1.7 1.7 0 0 0-1.88.34l-.06.06-2.03-2.03.06-.06A1.7 1.7 0 0 0 7.33 15 1.7 1.7 0 0 0 5.77 14h-.1v-2.87h.1a1.7 1.7 0 0 0 1.56-1.03 1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.03-2.03.06.06a1.7 1.7 0 0 0 1.88.34 1.7 1.7 0 0 0 1.03-1.56v-.1h2.87v.1a1.7 1.7 0 0 0 1.03 1.56 1.7 1.7 0 0 0 1.56 1.03h.1V14h-.1A1.7 1.7 0 0 0 19.4 15Z" /></svg>
 }
 
+function StatsIcon() {
+  return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19V10" /><path d="M12 19V5" /><path d="M19 19v-7" /></svg>
+}
+
 function App() {
   const [gameMode, setGameMode] = useState(GAME_MODE.daily)
   const [solution, setSolution] = useState('')
@@ -31,6 +36,19 @@ function App() {
   const [showResult, setShowResult] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [puzzleDate, setPuzzleDate] = useState(null)
+  const [playerId] = useState(() => {
+    const key = 'sumdle_player_id'
+    const existing = window.localStorage.getItem(key)
+    if (existing) return existing
+    const id = crypto.randomUUID()
+    window.localStorage.setItem(key, id)
+    return id
+  })
+  const [stats, setStats] = useState(null)
+  const [showStats, setShowStats] = useState(false)
+  const [statsLoading, setStatsLoading] = useState(false)
+  const [statsError, setStatsError] = useState(false)
 
   const resetGame = useCallback(() => {
     setCurrentRow(0)
@@ -52,6 +70,7 @@ function App() {
       const puzzle = await response.json()
       if (!/^[a-z]{5}$/.test(puzzle.solution ?? '')) throw new Error('Invalid puzzle response')
       setSolution(puzzle.solution)
+      setPuzzleDate(puzzle.date ?? null)
     } catch {
       setSolution('')
       setMessage("couldn't load a puzzle right now")
@@ -64,6 +83,21 @@ function App() {
     const loadId = window.setTimeout(() => loadPuzzle(GAME_MODE.daily), 0)
     return () => window.clearTimeout(loadId)
   }, [loadPuzzle])
+
+  useEffect(() => {
+    fetch(`${API_BASE_URL}/api/players`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ player_id: playerId }) }).catch(() => {})
+  }, [playerId])
+
+  const loadStats = useCallback(async () => {
+    setStatsLoading(true); setStatsError(false)
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/players/${encodeURIComponent(playerId)}/stats`)
+      if (!response.ok) throw new Error('Stats request failed')
+      setStats(await response.json())
+    } catch { setStatsError(true) } finally { setStatsLoading(false) }
+  }, [playerId])
+
+  const openStats = useCallback(() => { setShowStats(true); loadStats() }, [loadStats])
 
   const switchMode = useCallback((mode) => {
     if (mode === gameMode) return
@@ -126,6 +160,15 @@ function App() {
     return () => window.clearTimeout(timeoutId)
   }, [gameStatus])
 
+  useEffect(() => {
+    if (gameStatus === GAME_STATUS.playing || !solution) return
+    const attempts = submittedGuesses.length
+    fetch(`${API_BASE_URL}/api/game-results`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ player_id: playerId, mode: gameMode, attempts, won: gameStatus === GAME_STATUS.won, puzzle_date: puzzleDate, solution }) })
+      .then((response) => response.ok ? response.json() : Promise.reject())
+      .then((result) => setStats(result.stats))
+      .catch(() => {})
+  }, [gameMode, gameStatus, playerId, puzzleDate, solution, submittedGuesses.length])
+
   const playAgain = useCallback(() => {
     if (gameMode === GAME_MODE.unlimited) {
       resetGame()
@@ -143,7 +186,7 @@ function App() {
 
   return <main className="game-shell">
     <div className="atmosphere atmosphere-pink" aria-hidden="true" /><div className="atmosphere atmosphere-lavender" aria-hidden="true" />
-    <header className="game-header"><button className="circle-button" type="button" aria-label="How to play"><HelpIcon /></button><div className="brand" aria-label="Sumdle: a tiny daily word game"><span className="brand-flower" aria-hidden="true">✿</span><span className="brand-sparkle" aria-hidden="true">✦</span><h1>SUMDLE</h1><span className="brand-heart" aria-hidden="true">♡</span><span className="brand-petal" aria-hidden="true">✦</span></div><button className="circle-button" type="button" aria-label="Game settings"><SettingsIcon /></button></header>
+    <header className="game-header"><button className="circle-button" type="button" aria-label="How to play"><HelpIcon /></button><div className="brand" aria-label="Sumdle: a tiny daily word game"><span className="brand-flower" aria-hidden="true">✿</span><span className="brand-sparkle" aria-hidden="true">✦</span><h1>SUMDLE</h1><span className="brand-heart" aria-hidden="true">♡</span><span className="brand-petal" aria-hidden="true">✦</span></div><div className="header-actions"><button className="circle-button" type="button" aria-label="View statistics" onClick={openStats}><StatsIcon /></button><button className="circle-button" type="button" aria-label="Game settings"><SettingsIcon /></button></div></header>
     <section className="game-card" aria-label="Sumdle game board"><div className="card-decoration decoration-top" aria-hidden="true">✦</div><div className="card-decoration decoration-bottom" aria-hidden="true">✿</div>
       <p className="game-subtitle">a tiny daily word game</p>
       <div className="mode-selector" aria-label="Game mode"><button className={gameMode === GAME_MODE.daily ? 'mode-button mode-button--active' : 'mode-button'} type="button" aria-pressed={gameMode === GAME_MODE.daily} onClick={() => switchMode(GAME_MODE.daily)}>Daily</button><button className={gameMode === GAME_MODE.unlimited ? 'mode-button mode-button--active' : 'mode-button'} type="button" aria-pressed={gameMode === GAME_MODE.unlimited} onClick={() => switchMode(GAME_MODE.unlimited)}>Unlimited</button></div>
@@ -153,7 +196,8 @@ function App() {
       <GameKeyboard disabled={isLoading || isSubmitting || gameStatus !== GAME_STATUS.playing || !solution} keyStates={keyStates} onKeyPress={handleInput} />
       <footer className="game-footer">made with <span aria-label="love">♡</span></footer>
     </section>
-    {showResult && <GameResult attempts={submittedGuesses.length} gameMode={gameMode} gameStatus={gameStatus} onPlayAgain={playAgain} solution={solution} />}
+    {showResult && <GameResult attempts={submittedGuesses.length} gameMode={gameMode} gameStatus={gameStatus} onPlayAgain={playAgain} solution={solution} streak={gameMode === GAME_MODE.daily ? stats?.current_streak : null} />}
+    {showStats && <StatsModal error={statsError} loading={statsLoading} onClose={() => setShowStats(false)} stats={stats} />}
   </main>
 }
 

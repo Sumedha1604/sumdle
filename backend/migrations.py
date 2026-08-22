@@ -12,6 +12,10 @@ def apply_migrations(connection, dialect: str) -> None:
     migrations = {1: (
         f"CREATE TABLE IF NOT EXISTS solutions (id {identity}, word TEXT UNIQUE NOT NULL, difficulty TEXT, active INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL)",
         "CREATE TABLE IF NOT EXISTS word_validation_cache (word TEXT PRIMARY KEY, valid INTEGER NOT NULL, definition TEXT, checked_at TEXT NOT NULL)",
+    ), 2: (
+        "CREATE TABLE IF NOT EXISTS players (id TEXT PRIMARY KEY, created_at TEXT NOT NULL, last_seen_at TEXT)",
+        f"CREATE TABLE IF NOT EXISTS game_results (id {identity}, player_id TEXT NOT NULL REFERENCES players(id), mode TEXT NOT NULL CHECK(mode IN ('daily', 'unlimited')), puzzle_date TEXT, solution_id TEXT NOT NULL, won INTEGER NOT NULL CHECK(won IN (0, 1)), attempts INTEGER NOT NULL CHECK(attempts BETWEEN 1 AND 6), completed_at TEXT NOT NULL, UNIQUE(player_id, mode, puzzle_date))",
+        "CREATE INDEX IF NOT EXISTS game_results_player_completed_idx ON game_results(player_id, completed_at)",
     )}
     for version, statements in migrations.items():
         if version not in applied:

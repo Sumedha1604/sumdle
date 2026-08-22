@@ -3,7 +3,7 @@ from datetime import date, timedelta
 
 import pytest
 
-from backend import database, word_service
+from backend import database, player_stats, word_service
 from backend.word_service import NoActiveSolutionsError
 from backend.mcp_client import McpUnavailableError
 from backend.seed import CURATED_SOLUTIONS, FALLBACK_VALID_GUESSES, seed_solutions
@@ -71,7 +71,33 @@ def test_database_initialization_is_repeatable(temporary_database):
     database.initialize_database()
     with database.connect() as connection:
         tables = {row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type='table'")}
-    assert {"solutions", "word_validation_cache"} <= tables
+    assert {"solutions", "word_validation_cache", "players", "game_results"} <= tables
+
+
+def test_player_results_stats_and_daily_streaks(temporary_database):
+    player = "b6f7d24b-cf06-49a3-a245-a11cb201cdda"
+    assert player_stats.register_player(player) == player
+    assert player_stats.register_player(player) == player
+    assert player_stats.get_stats(player)["games_played"] == 0
+    first = date(2026, 8, 20)
+    for offset, won, attempts in ((0, True, 2), (1, True, 3), (2, False, 6), (3, True, 4), (5, True, 1)):
+        day = first + timedelta(days=offset)
+        result = player_stats.record_result(player, "daily", attempts, won, day.isoformat(), word_service.get_daily_solution(day))
+        assert result["recorded"]
+    stats = player_stats.get_stats(player)
+    assert stats == {"games_played": 5, "games_won": 4, "win_percentage": 80, "current_streak": 1, "max_streak": 2, "guess_distribution": {"1": 1, "2": 1, "3": 1, "4": 1, "5": 0, "6": 0}}
+
+
+def test_unlimited_and_duplicate_daily_results(temporary_database):
+    player = "6e349c1e-e299-4b8f-af1b-7c0f87d41f30"
+    day = date(2026, 8, 22)
+    solution = word_service.get_daily_solution(day)
+    assert player_stats.record_result(player, "daily", 2, True, day.isoformat(), solution)["recorded"]
+    assert not player_stats.record_result(player, "daily", 2, True, day.isoformat(), solution)["recorded"]
+    assert player_stats.record_result(player, "unlimited", 6, False, None, "apple")["recorded"]
+    stats = player_stats.get_stats(player)
+    assert stats["games_played"] == 2 and stats["games_won"] == 1
+    assert stats["current_streak"] == stats["max_streak"] == 1
 
 
 def test_seed_is_idempotent_and_unique(temporary_database):

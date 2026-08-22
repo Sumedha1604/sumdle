@@ -5,12 +5,14 @@ from datetime import date
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 
 from .mcp_client import McpUnavailableError
 from .database import initialize_database
 from .config import get_settings
 from .seed import seed_solutions
 from .word_service import NoActiveSolutionsError, get_daily_solution, get_random_solution, validate_with_fallback
+from .player_stats import get_stats, record_result, register_player
 
 
 @asynccontextmanager
@@ -25,14 +27,51 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=list(get_settings().cors_origins),
     allow_credentials=False,
-    allow_methods=["GET"],
+    allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
+
+
+class PlayerIdentity(BaseModel):
+    player_id: str
+
+
+class GameResultPayload(BaseModel):
+    player_id: str
+    mode: str
+    attempts: int
+    won: bool
+    puzzle_date: str | None = None
+    solution: str
 
 
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.post("/api/players")
+def create_player(payload: PlayerIdentity) -> dict[str, str]:
+    try:
+        return {"player_id": register_player(payload.player_id)}
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+
+
+@app.get("/api/players/{player_id}/stats")
+def player_stats(player_id: str) -> dict:
+    try:
+        return get_stats(player_id)
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+
+
+@app.post("/api/game-results")
+def create_game_result(payload: GameResultPayload) -> dict:
+    try:
+        return record_result(**payload.model_dump())
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
 
 
 @app.get("/api/words/validate/{word}")

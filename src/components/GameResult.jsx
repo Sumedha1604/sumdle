@@ -1,4 +1,4 @@
-function GameResult({ attempts, gameMode, gameStatus, onPlayAgain, solution }) {
+function GameResult({ attempts, gameMode, gameStatus, onPlayAgain, solution, streak }) {
   const won = gameStatus === 'won'
 
   return (
@@ -12,6 +12,7 @@ function GameResult({ attempts, gameMode, gameStatus, onPlayAgain, solution }) {
         ) : (
           <p className="result-copy">The word was <strong>{solution.toUpperCase()}</strong>.</p>
         )}
+        {won && streak !== null && <p className="result-streak">daily streak: {streak} ✦</p>}
         <button className="play-again-button" type="button" onClick={onPlayAgain} autoFocus>{gameMode === 'daily' ? 'try unlimited' : 'play again'}</button>
       </section>
     </div>
