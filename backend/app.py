@@ -10,9 +10,9 @@ from .mcp_client import McpUnavailableError
 from .database import initialize_database
 from .config import get_settings
 from .seed import seed_solutions
-from .word_service import validate_with_fallback
+from .word_service import get_word_definition, validate_with_fallback
 from .player_stats import get_stats, register_player
-from .game_service import get_game, start_game, submit_guess
+from .game_service import get_definition, get_game, get_hint, start_game, submit_guess
 
 
 @asynccontextmanager
@@ -99,6 +99,26 @@ async def guess(game_id: str, payload: GuessPayload) -> dict:
         raise HTTPException(status_code=404, detail=str(error)) from error
     except ValueError as error:
         raise HTTPException(status_code=409, detail=str(error)) from error
+
+
+@app.get("/api/games/{game_id}/hint")
+async def hint(game_id: str, level: int = 1) -> dict:
+    try:
+        return await get_hint(game_id, level)
+    except LookupError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    except ValueError as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
+
+
+@app.get("/api/games/{game_id}/definition")
+async def definition(game_id: str) -> dict:
+    try:
+        return await get_definition(game_id)
+    except LookupError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    except PermissionError as error:
+        raise HTTPException(status_code=403, detail=str(error)) from error
 
 
 @app.get("/api/words/validate/{word}")

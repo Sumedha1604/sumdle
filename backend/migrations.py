@@ -20,6 +20,8 @@ def apply_migrations(connection, dialect: str) -> None:
         "CREATE TABLE IF NOT EXISTS game_sessions (id TEXT PRIMARY KEY, player_id TEXT NOT NULL REFERENCES players(id), mode TEXT NOT NULL CHECK(mode IN ('daily', 'unlimited')), puzzle_date TEXT, solution TEXT NOT NULL, status TEXT NOT NULL CHECK(status IN ('playing', 'won', 'lost')), attempts INTEGER NOT NULL DEFAULT 0 CHECK(attempts BETWEEN 0 AND 6), created_at TEXT NOT NULL, completed_at TEXT, UNIQUE(player_id, mode, puzzle_date))",
         f"CREATE TABLE IF NOT EXISTS game_guesses (id {identity}, game_id TEXT NOT NULL REFERENCES game_sessions(id) ON DELETE CASCADE, guess TEXT NOT NULL, result TEXT NOT NULL, attempt_number INTEGER NOT NULL, created_at TEXT NOT NULL, UNIQUE(game_id, attempt_number))",
         "CREATE INDEX IF NOT EXISTS game_sessions_player_idx ON game_sessions(player_id, created_at)",
+    ), 4: (
+        "ALTER TABLE game_sessions ADD COLUMN hint_count INTEGER NOT NULL DEFAULT 0 CHECK(hint_count BETWEEN 0 AND 2)",
     )}
     for version, statements in migrations.items():
         if version not in applied:

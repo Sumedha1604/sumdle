@@ -148,6 +148,44 @@ def test_duplicate_letters_and_six_attempt_loss(temporary_database, monkeypatch)
     assert result["status"] == "lost" and result["attempts"] == 6 and result["solution"] == "apple"
 
 
+def test_hints_persist_are_sanitized_and_definitions_wait_for_completion(temporary_database, monkeypatch):
+    player = "6e349c1e-e299-4b8f-af1b-7c0f87d41f34"
+
+    async def definition(word):
+        return {"word": word, "phonetic": "ˈapəl", "definitions": [{"part_of_speech": "noun", "definition": "an apple is a round fruit"}], "examples": []}
+
+    monkeypatch.setattr(game_service, "get_word_definition", definition)
+    game = game_service.start_game(player, "unlimited")
+    with database.connect() as connection:
+        connection.execute("UPDATE game_sessions SET solution = 'apple' WHERE id = ?", (game["game_id"],))
+    with pytest.raises(PermissionError):
+        asyncio.run(game_service.get_definition(game["game_id"]))
+    first = asyncio.run(game_service.get_hint(game["game_id"], 1))
+    second = asyncio.run(game_service.get_hint(game["game_id"], 2))
+    assert first["hint_count"] == 1 and "apple" not in first["hint"].lower()
+    assert second["hint_count"] == 2 and "apple" not in second["hint"].lower()
+    assert game_service.get_game(game["game_id"])["hint_count"] == 2
+    with pytest.raises(ValueError):
+        asyncio.run(game_service.get_hint(game["game_id"], 1))
+
+    async def valid_guess(word):
+        return {"word": word, "valid": True, "source": "cache"}
+
+    monkeypatch.setattr(game_service, "validate_with_fallback", valid_guess)
+    asyncio.run(game_service.submit_guess(game["game_id"], "apple"))
+    assert asyncio.run(game_service.get_definition(game["game_id"]))["definition"] == "an apple is a round fruit"
+
+
+def test_hint_and_definition_handle_dictionary_outage(temporary_database, monkeypatch):
+    game = game_service.start_game("6e349c1e-e299-4b8f-af1b-7c0f87d41f35", "unlimited")
+
+    async def unavailable(word):
+        raise McpUnavailableError("offline")
+
+    monkeypatch.setattr(game_service, "get_word_definition", unavailable)
+    assert not asyncio.run(game_service.get_hint(game["game_id"], 1))["available"]
+
+
 def test_seed_is_idempotent_and_unique(temporary_database):
     seed_solutions()
     seed_solutions()

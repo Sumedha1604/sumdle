@@ -48,6 +48,9 @@ function App() {
   const [showStats, setShowStats] = useState(false)
   const [statsLoading, setStatsLoading] = useState(false)
   const [statsError, setStatsError] = useState(false)
+  const [hint, setHint] = useState('')
+  const [hintCount, setHintCount] = useState(0)
+  const [definition, setDefinition] = useState(null)
 
   const resetGame = useCallback(() => {
     setCurrentRow(0)
@@ -59,7 +62,7 @@ function App() {
   }, [])
 
   const applyGame = useCallback((game) => {
-    setGameId(game.game_id); setSubmittedGuesses(game.guesses); setCurrentRow(game.attempts); setGameStatus(game.status); setSolution(game.solution ?? '')
+    setGameId(game.game_id); setSubmittedGuesses(game.guesses); setCurrentRow(game.attempts); setGameStatus(game.status); setSolution(game.solution ?? ''); setHintCount(game.hint_count ?? 0)
   }, [])
 
   const loadPuzzle = useCallback(async (mode) => {
@@ -125,6 +128,17 @@ function App() {
     }
   }, [applyGame, currentGuess, gameId, gameStatus, isLoading, isSubmitting])
 
+  const requestHint = useCallback(async () => {
+    if (!gameId || hintCount >= 2 || isSubmitting) return
+    setIsSubmitting(true)
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/games/${encodeURIComponent(gameId)}/hint?level=${hintCount + 1}`)
+      const result = await response.json()
+      if (!response.ok) throw new Error('Hint request failed')
+      setHint(result.hint); setHintCount(result.hint_count)
+    } catch { setHint('tiny hints are taking a little break ✦') } finally { setIsSubmitting(false) }
+  }, [gameId, hintCount, isSubmitting])
+
   const handleInput = useCallback((key) => {
     if (isLoading || isSubmitting || gameStatus !== GAME_STATUS.playing || currentRow >= MAX_ROWS) return
     if (key === 'Backspace') setCurrentGuess((guess) => guess.slice(0, -1))
@@ -155,6 +169,13 @@ function App() {
     return () => window.clearTimeout(timeoutId)
   }, [gameStatus])
 
+  useEffect(() => {
+    if (gameStatus === GAME_STATUS.playing || !gameId) return
+    fetch(`${API_BASE_URL}/api/games/${encodeURIComponent(gameId)}/definition`)
+      .then((response) => response.ok ? response.json() : { available: false })
+      .then(setDefinition).catch(() => setDefinition({ available: false }))
+  }, [gameId, gameStatus])
+
   const playAgain = useCallback(() => {
     if (gameMode === GAME_MODE.unlimited) {
       resetGame()
@@ -178,11 +199,12 @@ function App() {
       <div className="mode-selector" aria-label="Game mode"><button className={gameMode === GAME_MODE.daily ? 'mode-button mode-button--active' : 'mode-button'} type="button" aria-pressed={gameMode === GAME_MODE.daily} onClick={() => switchMode(GAME_MODE.daily)}>Daily</button><button className={gameMode === GAME_MODE.unlimited ? 'mode-button mode-button--active' : 'mode-button'} type="button" aria-pressed={gameMode === GAME_MODE.unlimited} onClick={() => switchMode(GAME_MODE.unlimited)}>Unlimited</button></div>
       <p className="status-strip">{isLoading ? 'loading puzzle...' : gameMode === GAME_MODE.daily ? "today's puzzle" : 'unlimited puzzle'} <span>·</span> 5 letters</p>
       <p className={`game-message${message ? ' game-message--visible' : ''}`} role="status" aria-live="polite">{message}</p>
+      {gameStatus === GAME_STATUS.playing && <><button className="hint-button" type="button" onClick={requestHint} disabled={isLoading || isSubmitting || hintCount >= 2}>{hintCount >= 2 ? 'all tiny hints used' : `tiny hint ✦ ${hintCount ? '(one more)' : ''}`}</button>{hint && <p className="hint-toast" role="status"><strong>tiny hint ✦</strong>{hint}</p>}</>}
       <div className="board-area"><GameBoard currentGuess={currentGuess} currentRow={currentRow} submittedGuesses={submittedGuesses} /></div>
       <GameKeyboard disabled={isLoading || isSubmitting || gameStatus !== GAME_STATUS.playing || !gameId} keyStates={keyStates} onKeyPress={handleInput} />
       <footer className="game-footer">made with <span aria-label="love">♡</span></footer>
     </section>
-    {showResult && <GameResult attempts={submittedGuesses.length} gameMode={gameMode} gameStatus={gameStatus} onPlayAgain={playAgain} solution={solution} streak={gameMode === GAME_MODE.daily ? stats?.current_streak : null} />}
+    {showResult && <GameResult attempts={submittedGuesses.length} definition={definition} gameMode={gameMode} gameStatus={gameStatus} onPlayAgain={playAgain} solution={solution} streak={gameMode === GAME_MODE.daily ? stats?.current_streak : null} />}
     {showStats && <StatsModal error={statsError} loading={statsLoading} onClose={() => setShowStats(false)} stats={stats} />}
   </main>
 }
