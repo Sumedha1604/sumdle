@@ -210,12 +210,13 @@ function App() {
       <ModeToggle gameMode={gameMode} onChange={switchMode} />
       <p className="status-strip">{isLoading ? 'loading puzzle...' : gameMode === GAME_MODE.daily ? "today's puzzle" : 'unlimited puzzle'} <span>·</span> 5 letters</p>
       <p className={`game-message${message ? ' game-message--visible' : ''}`} role="status" aria-live="polite">{message}</p>
+      {gameStatus !== GAME_STATUS.playing && !showResult && <button className="view-results-button" type="button" onClick={() => setShowResult(true)}>results ♡</button>}
       <div className="board-area"><GameBoard currentGuess={currentGuess} currentRow={currentRow} submittedGuesses={submittedGuesses} /></div>
       {gameStatus === GAME_STATUS.playing && <div className="hint-area"><button className={`hint-button${hintCount < 2 && !hint ? ' hint-button--available' : ''}`} type="button" onClick={requestHint} disabled={isLoading || isSubmitting || hintCount >= 2}>{hintCount >= 2 ? 'all tiny hints used' : `hint ${hintCount ? '(one more)' : ''}`}</button>{hint && <div className="hint-toast-row"><Mascot state={mascotState} /><p className="hint-toast" role="status"><strong>tiny hint ✦</strong>{hint}</p></div>}</div>}
       <GameKeyboard disabled={isLoading || isSubmitting || gameStatus !== GAME_STATUS.playing || !gameId} keyStates={keyStates} onKeyPress={handleInput} />
       <footer className="game-footer">made with <span aria-label="love">♡</span></footer>
     </section>
-    {showResult && <GameResult attempts={submittedGuesses.length} definition={definition} gameMode={gameMode} gameStatus={gameStatus} onPlayAgain={playAgain} solution={solution} streak={gameMode === GAME_MODE.daily ? stats?.current_streak : null} />}
+    {showResult && <GameResult attempts={submittedGuesses.length} definition={definition} gameMode={gameMode} gameStatus={gameStatus} onPlayAgain={playAgain} onViewPuzzle={() => setShowResult(false)} solution={solution} streak={gameMode === GAME_MODE.daily ? stats?.current_streak : null} />}
     {showStats && <StatsModal error={statsError} loading={statsLoading} onClose={() => setShowStats(false)} stats={stats} />}
     {showHelp && <div className="result-overlay" onMouseDown={() => setShowHelp(false)}><section className="result-card help-card" role="dialog" aria-modal="true" aria-labelledby="help-title" onMouseDown={(event) => event.stopPropagation()}><button className="stats-close" type="button" aria-label="Close help" onClick={() => setShowHelp(false)}>×</button><p className="result-kicker">how to play</p><h2 id="help-title">find the tiny word</h2><p className="result-copy">Guess the five-letter word in six tries. Sage means the letter is in the right spot, lavender means it belongs somewhere else, and taupe means it is not in the word.</p></section></div>}
   </main>
