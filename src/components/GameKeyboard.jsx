@@ -1,3 +1,5 @@
+import Tooltip from './Tooltip.jsx'
+
 const keyboardRows = ['QWERTYUIOP', 'ASDFGHJKL', 'ENTERZXCVBNMBACKSPACE']
 
 function BackspaceIcon() {
@@ -10,7 +12,7 @@ function GameKeyboard({ disabled, keyStates, onKeyPress }) {
       {keyboardRows.map((row) => (
         <div className="keyboard-row" key={row}>
           {[...row.matchAll(/ENTER|BACKSPACE|[A-Z]/g)].map(([key]) => (
-            <button
+            key === 'BACKSPACE' ? <Tooltip className="keyboard-tooltip" key={key} label="Backspace" placement="top"><button
               className={`key key--${keyStates[key] ?? 'unused'}${key.length > 1 ? ' key--wide' : ''}`}
               key={key}
               type="button"
@@ -18,7 +20,16 @@ function GameKeyboard({ disabled, keyStates, onKeyPress }) {
               onClick={() => onKeyPress(key === 'ENTER' ? 'Enter' : key === 'BACKSPACE' ? 'Backspace' : key)}
               disabled={disabled}
             >
-              {key === 'BACKSPACE' ? <BackspaceIcon /> : key === 'ENTER' ? 'enter' : key}
+              <BackspaceIcon />
+            </button></Tooltip> : <button
+              className={`key key--${keyStates[key] ?? 'unused'}${key.length > 1 ? ' key--wide' : ''}`}
+              key={key}
+              type="button"
+              aria-label={key === 'ENTER' ? 'Submit guess' : key}
+              onClick={() => onKeyPress(key === 'ENTER' ? 'Enter' : key)}
+              disabled={disabled}
+            >
+              {key === 'ENTER' ? 'enter' : key}
             </button>
           ))}
         </div>

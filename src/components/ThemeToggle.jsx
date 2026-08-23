@@ -10,20 +10,21 @@ function ThemeToggle({ theme, onChange }) {
   return (
     <div className="theme-control" aria-label="Theme">
       {themes.map((option) => (
-        <button
+        <Tooltip key={option} label={`${option[0].toUpperCase()}${option.slice(1)} theme`}>
+          <button
           aria-label={`${option} theme`}
           aria-pressed={theme === option}
           className={`theme-option${theme === option ? ' theme-option--active' : ''}`}
-          key={option}
           onClick={() => onChange(option)}
-          title={`${option[0].toUpperCase()}${option.slice(1)} theme`}
           type="button"
-        >
-          <ThemeIcon theme={option} />
-        </button>
+          >
+            <ThemeIcon theme={option} />
+          </button>
+        </Tooltip>
       ))}
     </div>
   )
 }
 
 export default ThemeToggle
+import Tooltip from './Tooltip.jsx'

@@ -5,7 +5,7 @@ function StatsModal({ error, loading, onClose, stats }) {
   return (
     <div className="result-overlay stats-overlay" onMouseDown={onClose}>
       <section className="result-card stats-card" role="dialog" aria-modal="true" aria-labelledby="stats-title" onMouseDown={(event) => event.stopPropagation()}>
-        <button className="stats-close" type="button" aria-label="Close statistics" onClick={onClose}>×</button>
+        <Tooltip className="modal-close-tooltip" label="Close statistics"><button className="stats-close" type="button" aria-label="Close statistics" onClick={onClose}>×</button></Tooltip>
         <p className="result-kicker">your tiny record</p><h2 id="stats-title">statistics ✦</h2>
         {loading ? <p className="stats-state">gathering your little wins...</p> : error ? <p className="stats-state">stats are taking a small break. your game is still safe to play.</p> : <>
           <div className="stats-summary"><div><strong>{stats.games_played}</strong><span>Played</span></div><div><strong>{stats.win_percentage}%</strong><span>Win %</span></div><div><strong>{stats.current_streak}</strong><span>Current<br />Streak</span></div><div><strong>{stats.max_streak}</strong><span>Max<br />Streak</span></div></div>
@@ -19,3 +19,4 @@ function StatsModal({ error, loading, onClose, stats }) {
 }
 
 export default StatsModal
+import Tooltip from './Tooltip.jsx'
