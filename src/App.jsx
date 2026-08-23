@@ -211,7 +211,7 @@ function App() {
       <p className="status-strip">{isLoading ? 'loading puzzle...' : gameMode === GAME_MODE.daily ? "today's puzzle" : 'unlimited puzzle'} <span>·</span> 5 letters</p>
       <p className={`game-message${message ? ' game-message--visible' : ''}`} role="status" aria-live="polite">{message}</p>
       <div className="board-area"><GameBoard currentGuess={currentGuess} currentRow={currentRow} submittedGuesses={submittedGuesses} /></div>
-      {gameStatus === GAME_STATUS.playing && <div className="hint-area"><Mascot state={mascotState} /><div><button className={`hint-button${hintCount < 2 && !hint ? ' hint-button--available' : ''}`} type="button" onClick={requestHint} disabled={isLoading || isSubmitting || hintCount >= 2}>{hintCount >= 2 ? 'all tiny hints used' : `hint ${hintCount ? '(one more)' : ''}`}</button>{hint && <p className="hint-toast" role="status"><strong>tiny hint ✦</strong>{hint}</p>}</div></div>}
+      {gameStatus === GAME_STATUS.playing && <div className="hint-area"><button className={`hint-button${hintCount < 2 && !hint ? ' hint-button--available' : ''}`} type="button" onClick={requestHint} disabled={isLoading || isSubmitting || hintCount >= 2}>{hintCount >= 2 ? 'all tiny hints used' : `hint ${hintCount ? '(one more)' : ''}`}</button>{hint && <div className="hint-toast-row"><Mascot state={mascotState} /><p className="hint-toast" role="status"><strong>tiny hint ✦</strong>{hint}</p></div>}</div>}
       <GameKeyboard disabled={isLoading || isSubmitting || gameStatus !== GAME_STATUS.playing || !gameId} keyStates={keyStates} onKeyPress={handleInput} />
       <footer className="game-footer">made with <span aria-label="love">♡</span></footer>
     </section>

@@ -39,3 +39,10 @@
 
 /* Keep the post-game definition and CTA as one centered content group. */
 .result-card--won, .result-card--lost { display: grid; justify-items: center; }.result-card--won .word-definition, .result-card--lost .word-definition { width: 100%; margin: 0; }.result-card--won .play-again-button, .result-card--lost .play-again-button { margin-top: .6rem; }
+
+/* Compact hint stack: the button stays centered while the mascot belongs to the hint copy. */
+.hint-area { display: grid; width: 100%; min-height: 1.9rem; margin: 0 0 .28rem; gap: .28rem; place-items: center; }.hint-area > .hint-button { justify-self: center; }.hint-toast-row { display: flex; width: fit-content; max-width: min(100%, 20rem); align-items: center; gap: .38rem; }.hint-toast-row .mascot { flex: 0 0 1.55rem; width: 1.55rem; height: 1.72rem; }.hint-toast { width: auto; max-width: min(100%, 18rem); margin: 0; padding: .34rem .58rem; text-align: left; }.hint-toast strong { margin-bottom: .06rem; }.hint-area:has(.hint-toast-row) { margin-bottom: .16rem; }.hint-area:has(.hint-toast-row) + .game-keyboard { padding-top: 0; }
+
+@media (max-height: 56.25rem) and (min-width: 48rem) { .hint-area { gap: .2rem; margin-bottom: .14rem; }.hint-toast { padding: .25rem .48rem; font-size: .66rem; }.hint-toast-row .mascot { transform: scale(.84); } }
+
+@media (max-width: 22.5rem) { .hint-toast-row { max-width: 100%; gap: .28rem; }.hint-toast { max-width: calc(100% - 1.83rem); } }
