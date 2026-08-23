@@ -1,8 +1,8 @@
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Serif+Display:ital@0;1&display=swap');
 
 :root { --background: #fffaf7; --surface: #fffefd; --text: #493942; --muted: #987f8b; --pink: #f3c5d5; --pink-pale: #fbedf2; --rose: #c9879e; --lavender: #ddd2f2; --sage: #cbdcc5; --sage-deep: #91ad8c; --border: #eadde3; --body-font: 'DM Sans', sans-serif; --display-font: 'DM Serif Display', Georgia, serif; color: var(--text); font-family: var(--body-font); font-synthesis: none; text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
-:root[data-theme='dark'] { --background: #2d2029; --surface: #382833; --text: #f9eee7; --muted: #c9adb5; --pink: #9b6377; --pink-pale: #4d3440; --rose: #d696aa; --lavender: #88789f; --sage: #748d72; --sage-deep: #abc69e; --border: #634752; }
+:root[data-theme='dark'] { --background: #2a1f26; --surface: #35262f; --surface-soft: #40303a; --surface-elevated: #493640; --text: #f6eee8; --text-soft: #d9c6cb; --text-muted: #b79fa7; --muted: var(--text-muted); --pink: #b87389; --pink-pale: #47323c; --rose: #c98298; --rose-soft: #a9657c; --rose-border: #805263; --lavender: #a99ac7; --sage: #9fb58f; --sage-deep: #b3c5a4; --absent: #66575d; --border: #6f4c5c; --shadow: rgba(16,10,13,.28); }
 * { box-sizing: border-box; }
 body { min-width: 280px; min-height: 100vh; min-height: 100dvh; margin: 0; overflow-x: hidden; background: var(--background); background-image: radial-gradient(circle at 50% 28%, rgba(255,255,255,.85), transparent 36%); }
-:root[data-theme='dark'] body { background-image: radial-gradient(circle at 50% 25%, rgba(111,75,96,.42), transparent 42%); }
+:root[data-theme='dark'] body { background-image: radial-gradient(circle at 50% 25%, color-mix(in srgb, var(--surface-elevated) 78%, transparent), transparent 42%); }
 button { font: inherit; }
