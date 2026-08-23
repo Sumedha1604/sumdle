@@ -15,6 +15,14 @@ const GAME_MODE = { daily: 'daily', unlimited: 'unlimited' }
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '')
 const keyPriority = { unused: 0, absent: 1, present: 2, correct: 3 }
 const GAME_STATUS = { playing: 'playing', won: 'won', lost: 'lost' }
+const shareTiles = { correct: '🟩', present: '🟪', absent: '⬜' }
+
+function friendlyGuessMessage(message) {
+  const text = String(message ?? '')
+  if (/five|length/i.test(text)) return 'tiny words need five letters ♡'
+  if (/dictionary|valid word|not.*word/i.test(text)) return 'not in my tiny dictionary ♡'
+  return text || 'could not check that word right now'
+}
 
 function HelpIcon() {
   return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.45 9.15a2.68 2.68 0 1 1 4.42 2.05c-.98.84-1.87 1.4-1.87 2.8" /><path d="M12 16.9h.01" /></svg>
@@ -53,6 +61,7 @@ function App() {
   const [definition, setDefinition] = useState(null)
   const [theme, setTheme] = useState(() => window.localStorage.getItem('sumdle_theme') || 'system')
   const [showHelp, setShowHelp] = useState(false)
+  const [shareMessage, setShareMessage] = useState('')
 
   useEffect(() => {
     const query = window.matchMedia('(prefers-color-scheme: dark)')
@@ -126,7 +135,7 @@ function App() {
       if (!response.ok) throw new Error('Validation request failed')
       const game = await response.json()
       if (!game.accepted) {
-        setMessage(game.message)
+        setMessage(friendlyGuessMessage(game.message))
         return
       }
       applyGame(game)
@@ -153,9 +162,12 @@ function App() {
   const handleInput = useCallback((key) => {
     if (isLoading || isSubmitting || gameStatus !== GAME_STATUS.playing || currentRow >= MAX_ROWS) return
     if (key === 'Backspace') setCurrentGuess((guess) => guess.slice(0, -1))
-    else if (key === 'Enter') submitGuess()
+    else if (key === 'Enter') {
+      if (currentGuess.length && currentGuess.length !== 5) setMessage('tiny words need five letters ♡')
+      else submitGuess()
+    }
     else if (/^[a-z]$/i.test(key)) setCurrentGuess((guess) => (guess.length < 5 ? `${guess}${key.toUpperCase()}` : guess))
-  }, [currentRow, gameStatus, isLoading, isSubmitting, submitGuess])
+  }, [currentGuess, currentRow, gameStatus, isLoading, isSubmitting, submitGuess])
 
   useEffect(() => {
     const handleKeyDown = (event) => {
@@ -194,6 +206,31 @@ function App() {
     } else switchMode(GAME_MODE.unlimited)
   }, [gameMode, loadPuzzle, resetGame, switchMode])
 
+  const shareResult = useCallback(async () => {
+    const score = gameStatus === GAME_STATUS.won ? submittedGuesses.length : 'X'
+    const modeLabel = gameMode === GAME_MODE.daily ? 'Daily' : 'Unlimited'
+    const grid = submittedGuesses.map((guess) => guess.result.map((state) => shareTiles[state] ?? '⬜').join('')).join('\n')
+    const text = `SUMDLE ♡\n${modeLabel} ${score}/6\n\n${grid}`
+    try {
+      if (navigator.share) {
+        await navigator.share({ text, title: 'SUMDLE' })
+        setShareMessage('shared ♡')
+      } else {
+        await navigator.clipboard.writeText(text)
+        setShareMessage('result copied ♡')
+      }
+    } catch (error) {
+      if (error?.name === 'AbortError') return
+      try { await navigator.clipboard.writeText(text); setShareMessage('result copied ♡') } catch { setShareMessage('ready to share ♡') }
+    }
+  }, [gameMode, gameStatus, submittedGuesses])
+
+  useEffect(() => {
+    if (!shareMessage) return undefined
+    const timeoutId = window.setTimeout(() => setShareMessage(''), 2200)
+    return () => window.clearTimeout(timeoutId)
+  }, [shareMessage])
+
   const keyStates = useMemo(() => submittedGuesses.reduce((states, guess) => {
     guess.word.toUpperCase().split('').forEach((letter, index) => {
       const state = guess.result[index]
@@ -202,7 +239,7 @@ function App() {
     return states
   }, {}), [submittedGuesses])
 
-  const mascotState = gameStatus === GAME_STATUS.won ? 'win' : gameStatus === GAME_STATUS.lost ? 'loss' : hint ? 'hint' : currentGuess ? 'typing' : 'idle'
+  const mascotState = gameStatus === GAME_STATUS.won ? 'win' : gameStatus === GAME_STATUS.lost ? 'loss' : isSubmitting ? 'checking' : hint ? 'hint' : currentGuess.length === 5 ? 'excited' : currentGuess ? 'thoughtful' : 'idle'
 
   return <main className="game-shell">
     <div className="atmosphere atmosphere-pink" aria-hidden="true" /><div className="atmosphere atmosphere-lavender" aria-hidden="true" />
@@ -217,9 +254,9 @@ function App() {
       <GameKeyboard disabled={isLoading || isSubmitting || gameStatus !== GAME_STATUS.playing || !gameId} keyStates={keyStates} onKeyPress={handleInput} />
       <footer className="game-footer">made with <span aria-label="love">♡</span></footer>
     </section>
-    {showResult && <GameResult attempts={submittedGuesses.length} definition={definition} gameMode={gameMode} gameStatus={gameStatus} onPlayAgain={playAgain} onViewPuzzle={() => setShowResult(false)} solution={solution} streak={gameMode === GAME_MODE.daily ? stats?.current_streak : null} />}
+    {showResult && <GameResult attempts={submittedGuesses.length} definition={definition} gameMode={gameMode} gameStatus={gameStatus} onPlayAgain={playAgain} onShare={shareResult} onViewPuzzle={() => setShowResult(false)} shareMessage={shareMessage} solution={solution} streak={gameMode === GAME_MODE.daily ? stats?.current_streak : null} />}
     {showStats && <StatsModal error={statsError} loading={statsLoading} onClose={() => setShowStats(false)} stats={stats} />}
-    {showHelp && <div className="result-overlay" onMouseDown={() => setShowHelp(false)}><section className="result-card help-card" role="dialog" aria-modal="true" aria-labelledby="help-title" onMouseDown={(event) => event.stopPropagation()}><Tooltip className="modal-close-tooltip" label="Close help"><button className="stats-close" type="button" aria-label="Close help" onClick={() => setShowHelp(false)}>×</button></Tooltip><p className="result-kicker">how to play</p><h2 id="help-title">find the tiny word</h2><p className="result-copy">Guess the five-letter word in six tries. After each guess, the tiles show how close you are.</p><div className="help-legend" aria-label="Tile result legend"><div className="help-legend-item"><span className="tile tile--correct help-tile" aria-hidden="true">A</span><span>right spot</span></div><div className="help-legend-item"><span className="tile tile--present help-tile" aria-hidden="true">A</span><span>wrong spot</span></div><div className="help-legend-item"><span className="tile tile--absent help-tile" aria-hidden="true">A</span><span>not in word</span></div></div></section></div>}
+    {showHelp && <div className="result-overlay" onMouseDown={() => setShowHelp(false)}><section className="result-card help-card" role="dialog" aria-modal="true" aria-labelledby="help-title" onMouseDown={(event) => event.stopPropagation()}><Tooltip className="modal-close-tooltip" label="Close help"><button className="stats-close" type="button" aria-label="Close help" onClick={() => setShowHelp(false)}>×</button></Tooltip><p className="result-kicker">how to play</p><h2 id="help-title">find the tiny word</h2><p className="result-copy">Guess the five-letter word in six tries. After each guess, the tiles show how close you are.</p><div className="help-legend" aria-label="Tile result legend"><div className="help-legend-item"><span className="tile tile--correct help-tile" aria-hidden="true">S</span><span>Correct spot</span></div><div className="help-legend-item"><span className="tile tile--present help-tile" aria-hidden="true">U</span><span>Wrong spot</span></div><div className="help-legend-item"><span className="tile tile--absent help-tile" aria-hidden="true">M</span><span>Not in word</span></div></div></section></div>}
   </main>
 }
 
