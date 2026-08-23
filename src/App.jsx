@@ -5,6 +5,7 @@ import GameResult from './components/GameResult.jsx'
 import StatsModal from './components/StatsModal.jsx'
 import ThemeToggle from './components/ThemeToggle.jsx'
 import Mascot from './components/Mascot.jsx'
+import HintFlower from './components/HintFlower.jsx'
 import ModeToggle from './components/ModeToggle.jsx'
 import Tooltip from './components/Tooltip.jsx'
 import './App.css'
@@ -249,8 +250,8 @@ function App() {
       <p className="status-strip">{isLoading ? 'loading puzzle...' : gameMode === GAME_MODE.daily ? "today's puzzle" : 'unlimited puzzle'} <span>·</span> 5 letters</p>
       <p className={`game-message${message ? ' game-message--visible' : ''}`} role="status" aria-live="polite">{message}</p>
       {gameStatus !== GAME_STATUS.playing && !showResult && <button className="view-results-button" type="button" onClick={() => setShowResult(true)}>results ♡</button>}
-      <div className="board-area"><GameBoard currentGuess={currentGuess} currentRow={currentRow} submittedGuesses={submittedGuesses} /></div>
-      {gameStatus === GAME_STATUS.playing && <div className="hint-area"><button className={`hint-button${hintCount < 2 && !hint ? ' hint-button--available' : ''}`} type="button" onClick={requestHint} disabled={isLoading || isSubmitting || hintCount >= 2}>{hintCount >= 2 ? 'all tiny hints used' : `hint ${hintCount ? '(one more)' : ''}`}</button>{hint && <div className="hint-toast-row"><Mascot state={mascotState} /><p className="hint-toast" role="status"><strong>tiny hint ✦</strong>{hint}</p></div>}</div>}
+      <div className="board-area"><Mascot className="board-woman" key={`${gameId}-${gameStatus}`} state={mascotState} /><GameBoard currentGuess={currentGuess} currentRow={currentRow} submittedGuesses={submittedGuesses} /></div>
+      {gameStatus === GAME_STATUS.playing && <div className="hint-area"><div className="hint-control-row"><HintFlower state={mascotState} /><button className={`hint-button${hintCount < 2 && !hint ? ' hint-button--available' : ''}`} type="button" onClick={requestHint} disabled={isLoading || isSubmitting || hintCount >= 2}>{hintCount >= 2 ? 'all tiny hints used' : `hint ${hintCount ? '(one more)' : ''}`}</button></div><div className={`hint-reveal${hint ? ' hint-reveal--open' : ''}`}><div className="hint-reveal-inner"><div className="hint-toast-row"><p aria-hidden={!hint} className="hint-toast" role="status"><strong>tiny hint ✦</strong>{hint}</p></div></div></div></div>}
       <GameKeyboard disabled={isLoading || isSubmitting || gameStatus !== GAME_STATUS.playing || !gameId} keyStates={keyStates} onKeyPress={handleInput} />
       <footer className="game-footer">made with <span aria-label="love">♡</span></footer>
     </section>
