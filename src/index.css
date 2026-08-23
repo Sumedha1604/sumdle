@@ -1,6 +1,8 @@
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Serif+Display:ital@0;1&display=swap');
 
 :root { --background: #fffaf7; --surface: #fffefd; --text: #493942; --muted: #987f8b; --pink: #f3c5d5; --pink-pale: #fbedf2; --rose: #c9879e; --lavender: #ddd2f2; --sage: #cbdcc5; --sage-deep: #91ad8c; --border: #eadde3; --body-font: 'DM Sans', sans-serif; --display-font: 'DM Serif Display', Georgia, serif; color: var(--text); font-family: var(--body-font); font-synthesis: none; text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+:root[data-theme='dark'] { --background: #2d2029; --surface: #382833; --text: #f9eee7; --muted: #c9adb5; --pink: #9b6377; --pink-pale: #4d3440; --rose: #d696aa; --lavender: #88789f; --sage: #748d72; --sage-deep: #abc69e; --border: #634752; }
 * { box-sizing: border-box; }
 body { min-width: 280px; min-height: 100vh; min-height: 100dvh; margin: 0; overflow-x: hidden; background: var(--background); background-image: radial-gradient(circle at 50% 28%, rgba(255,255,255,.85), transparent 36%); }
+:root[data-theme='dark'] body { background-image: radial-gradient(circle at 50% 25%, rgba(111,75,96,.42), transparent 42%); }
 button { font: inherit; }

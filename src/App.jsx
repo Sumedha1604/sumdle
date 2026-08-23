@@ -3,6 +3,9 @@ import GameBoard from './components/GameBoard.jsx'
 import GameKeyboard from './components/GameKeyboard.jsx'
 import GameResult from './components/GameResult.jsx'
 import StatsModal from './components/StatsModal.jsx'
+import ThemeToggle from './components/ThemeToggle.jsx'
+import Mascot from './components/Mascot.jsx'
+import ModeToggle from './components/ModeToggle.jsx'
 import './App.css'
 
 const MAX_ROWS = 6
@@ -14,10 +17,6 @@ const GAME_STATUS = { playing: 'playing', won: 'won', lost: 'lost' }
 
 function HelpIcon() {
   return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.45 9.15a2.68 2.68 0 1 1 4.42 2.05c-.98.84-1.87 1.4-1.87 2.8" /><path d="M12 16.9h.01" /></svg>
-}
-
-function SettingsIcon() {
-  return <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.03 2.03-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1.03 1.56v.1h-2.87v-.1a1.7 1.7 0 0 0-1.03-1.56 1.7 1.7 0 0 0-1.88.34l-.06.06-2.03-2.03.06-.06A1.7 1.7 0 0 0 7.33 15 1.7 1.7 0 0 0 5.77 14h-.1v-2.87h.1a1.7 1.7 0 0 0 1.56-1.03 1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.03-2.03.06.06a1.7 1.7 0 0 0 1.88.34 1.7 1.7 0 0 0 1.03-1.56v-.1h2.87v.1a1.7 1.7 0 0 0 1.03 1.56 1.7 1.7 0 0 0 1.56 1.03h.1V14h-.1A1.7 1.7 0 0 0 19.4 15Z" /></svg>
 }
 
 function StatsIcon() {
@@ -51,6 +50,17 @@ function App() {
   const [hint, setHint] = useState('')
   const [hintCount, setHintCount] = useState(0)
   const [definition, setDefinition] = useState(null)
+  const [theme, setTheme] = useState(() => window.localStorage.getItem('sumdle_theme') || 'system')
+  const [showHelp, setShowHelp] = useState(false)
+
+  useEffect(() => {
+    const query = window.matchMedia('(prefers-color-scheme: dark)')
+    const applyTheme = () => { document.documentElement.dataset.theme = theme === 'system' ? (query.matches ? 'dark' : 'light') : theme }
+    applyTheme()
+    query.addEventListener('change', applyTheme)
+    window.localStorage.setItem('sumdle_theme', theme)
+    return () => query.removeEventListener('change', applyTheme)
+  }, [theme])
 
   const resetGame = useCallback(() => {
     setCurrentRow(0)
@@ -191,21 +201,23 @@ function App() {
     return states
   }, {}), [submittedGuesses])
 
+  const mascotState = gameStatus === GAME_STATUS.won ? 'win' : gameStatus === GAME_STATUS.lost ? 'loss' : hint ? 'hint' : currentGuess ? 'typing' : 'idle'
+
   return <main className="game-shell">
     <div className="atmosphere atmosphere-pink" aria-hidden="true" /><div className="atmosphere atmosphere-lavender" aria-hidden="true" />
-    <header className="game-header"><button className="circle-button" type="button" aria-label="How to play"><HelpIcon /></button><div className="brand" aria-label="Sumdle: a tiny daily word game"><span className="brand-flower" aria-hidden="true">✿</span><span className="brand-sparkle" aria-hidden="true">✦</span><h1>SUMDLE</h1><span className="brand-heart" aria-hidden="true">♡</span><span className="brand-petal" aria-hidden="true">✦</span></div><div className="header-actions"><button className="circle-button" type="button" aria-label="View statistics" onClick={openStats}><StatsIcon /></button><button className="circle-button" type="button" aria-label="Game settings"><SettingsIcon /></button></div></header>
+    <header className="game-header"><div className="brand" aria-label="Sumdle: a tiny daily word game"><span className="brand-flower" aria-hidden="true">✿</span><span className="brand-sparkle" aria-hidden="true">✦</span><h1>SUMDLE</h1><p>a tiny daily word game</p><span className="brand-heart" aria-hidden="true">♡</span><span className="brand-petal" aria-hidden="true">✦</span></div><div className="header-actions"><ThemeToggle theme={theme} onChange={setTheme} /><button className="circle-button" type="button" aria-label="How to play" onClick={() => setShowHelp(true)}><HelpIcon /></button><button className="circle-button" type="button" aria-label="View statistics" onClick={openStats}><StatsIcon /></button></div></header>
     <section className="game-card" aria-label="Sumdle game board"><div className="card-decoration decoration-top" aria-hidden="true">✦</div><div className="card-decoration decoration-bottom" aria-hidden="true">✿</div>
-      <p className="game-subtitle">a tiny daily word game</p>
-      <div className="mode-selector" aria-label="Game mode"><button className={gameMode === GAME_MODE.daily ? 'mode-button mode-button--active' : 'mode-button'} type="button" aria-pressed={gameMode === GAME_MODE.daily} onClick={() => switchMode(GAME_MODE.daily)}>Daily</button><button className={gameMode === GAME_MODE.unlimited ? 'mode-button mode-button--active' : 'mode-button'} type="button" aria-pressed={gameMode === GAME_MODE.unlimited} onClick={() => switchMode(GAME_MODE.unlimited)}>Unlimited</button></div>
+      <ModeToggle gameMode={gameMode} onChange={switchMode} />
       <p className="status-strip">{isLoading ? 'loading puzzle...' : gameMode === GAME_MODE.daily ? "today's puzzle" : 'unlimited puzzle'} <span>·</span> 5 letters</p>
       <p className={`game-message${message ? ' game-message--visible' : ''}`} role="status" aria-live="polite">{message}</p>
-      {gameStatus === GAME_STATUS.playing && <><button className="hint-button" type="button" onClick={requestHint} disabled={isLoading || isSubmitting || hintCount >= 2}>{hintCount >= 2 ? 'all tiny hints used' : `tiny hint ✦ ${hintCount ? '(one more)' : ''}`}</button>{hint && <p className="hint-toast" role="status"><strong>tiny hint ✦</strong>{hint}</p>}</>}
       <div className="board-area"><GameBoard currentGuess={currentGuess} currentRow={currentRow} submittedGuesses={submittedGuesses} /></div>
+      {gameStatus === GAME_STATUS.playing && <div className="hint-area"><Mascot state={mascotState} /><div><button className={`hint-button${hintCount < 2 && !hint ? ' hint-button--available' : ''}`} type="button" onClick={requestHint} disabled={isLoading || isSubmitting || hintCount >= 2}>{hintCount >= 2 ? 'all tiny hints used' : `hint ${hintCount ? '(one more)' : ''}`}</button>{hint && <p className="hint-toast" role="status"><strong>tiny hint ✦</strong>{hint}</p>}</div></div>}
       <GameKeyboard disabled={isLoading || isSubmitting || gameStatus !== GAME_STATUS.playing || !gameId} keyStates={keyStates} onKeyPress={handleInput} />
       <footer className="game-footer">made with <span aria-label="love">♡</span></footer>
     </section>
     {showResult && <GameResult attempts={submittedGuesses.length} definition={definition} gameMode={gameMode} gameStatus={gameStatus} onPlayAgain={playAgain} solution={solution} streak={gameMode === GAME_MODE.daily ? stats?.current_streak : null} />}
     {showStats && <StatsModal error={statsError} loading={statsLoading} onClose={() => setShowStats(false)} stats={stats} />}
+    {showHelp && <div className="result-overlay" onMouseDown={() => setShowHelp(false)}><section className="result-card help-card" role="dialog" aria-modal="true" aria-labelledby="help-title" onMouseDown={(event) => event.stopPropagation()}><button className="stats-close" type="button" aria-label="Close help" onClick={() => setShowHelp(false)}>×</button><p className="result-kicker">how to play</p><h2 id="help-title">find the tiny word</h2><p className="result-copy">Guess the five-letter word in six tries. Sage means the letter is in the right spot, lavender means it belongs somewhere else, and taupe means it is not in the word.</p></section></div>}
   </main>
 }
 
