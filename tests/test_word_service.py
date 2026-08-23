@@ -1,5 +1,5 @@
 import asyncio
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 import pytest
 
@@ -131,6 +131,14 @@ def test_sessions_count_only_valid_guesses_and_daily_resumes(temporary_database,
     invalid = asyncio.run(game_service.submit_guess(daily["game_id"], "zzzzz"))
     assert not invalid["accepted"] and invalid["attempts"] == 0
     assert game_service.start_game(player, "daily")["game_id"] == daily["game_id"]
+
+
+def test_daily_session_includes_timezone_aware_next_reset(temporary_database):
+    daily = game_service.start_game("6e349c1e-e299-4b8f-af1b-7c0f87d41f51", "daily")
+    reset_at = datetime.fromisoformat(daily["next_daily_reset_at"])
+    assert reset_at.tzinfo is not None and reset_at.utcoffset() is not None
+    unlimited = game_service.start_game("6e349c1e-e299-4b8f-af1b-7c0f87d41f52", "unlimited")
+    assert "next_daily_reset_at" not in unlimited
 
 
 def test_duplicate_letters_and_six_attempt_loss(temporary_database, monkeypatch):

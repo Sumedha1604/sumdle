@@ -63,6 +63,7 @@ function App() {
   const [theme, setTheme] = useState(() => window.localStorage.getItem('sumdle_theme') || 'system')
   const [showHelp, setShowHelp] = useState(false)
   const [shareMessage, setShareMessage] = useState('')
+  const [dailyResetAt, setDailyResetAt] = useState(null)
 
   useEffect(() => {
     const query = window.matchMedia('(prefers-color-scheme: dark)')
@@ -83,7 +84,7 @@ function App() {
   }, [])
 
   const applyGame = useCallback((game) => {
-    setGameId(game.game_id); setSubmittedGuesses(game.guesses); setCurrentRow(game.attempts); setGameStatus(game.status); setSolution(game.solution ?? ''); setHintCount(game.hint_count ?? 0)
+    setGameId(game.game_id); setSubmittedGuesses(game.guesses); setCurrentRow(game.attempts); setGameStatus(game.status); setSolution(game.solution ?? ''); setHintCount(game.hint_count ?? 0); setDailyResetAt(game.next_daily_reset_at ?? null)
   }, [])
 
   const loadPuzzle = useCallback(async (mode) => {
@@ -207,6 +208,12 @@ function App() {
     } else switchMode(GAME_MODE.unlimited)
   }, [gameMode, loadPuzzle, resetGame, switchMode])
 
+  const refreshDaily = useCallback(() => {
+    if (gameMode !== GAME_MODE.daily) return
+    resetGame()
+    loadPuzzle(GAME_MODE.daily)
+  }, [gameMode, loadPuzzle, resetGame])
+
   const shareResult = useCallback(async () => {
     const score = gameStatus === GAME_STATUS.won ? submittedGuesses.length : 'X'
     const modeLabel = gameMode === GAME_MODE.daily ? 'Daily' : 'Unlimited'
@@ -255,7 +262,7 @@ function App() {
       <GameKeyboard disabled={isLoading || isSubmitting || gameStatus !== GAME_STATUS.playing || !gameId} keyStates={keyStates} onKeyPress={handleInput} />
       <footer className="game-footer">made with <span aria-label="love">♡</span></footer>
     </section>
-    {showResult && <GameResult attempts={submittedGuesses.length} definition={definition} gameMode={gameMode} gameStatus={gameStatus} onPlayAgain={playAgain} onShare={shareResult} onViewPuzzle={() => setShowResult(false)} shareMessage={shareMessage} solution={solution} streak={gameMode === GAME_MODE.daily ? stats?.current_streak : null} />}
+    {showResult && <GameResult attempts={submittedGuesses.length} definition={definition} gameMode={gameMode} gameStatus={gameStatus} nextDailyResetAt={dailyResetAt} onDailyReset={refreshDaily} onPlayAgain={playAgain} onShare={shareResult} onViewPuzzle={() => setShowResult(false)} shareMessage={shareMessage} solution={solution} streak={gameMode === GAME_MODE.daily ? stats?.current_streak : null} />}
     {showStats && <StatsModal error={statsError} loading={statsLoading} onClose={() => setShowStats(false)} stats={stats} />}
     {showHelp && <div className="result-overlay" onMouseDown={() => setShowHelp(false)}><section className="result-card help-card" role="dialog" aria-modal="true" aria-labelledby="help-title" onMouseDown={(event) => event.stopPropagation()}><Tooltip className="modal-close-tooltip" label="Close help"><button className="stats-close" type="button" aria-label="Close help" onClick={() => setShowHelp(false)}>×</button></Tooltip><p className="result-kicker">how to play</p><h2 id="help-title">find the tiny word</h2><p className="result-copy">Guess the five-letter word in six tries. After each guess, the tiles show how close you are.</p><div className="help-legend" aria-label="Tile result legend"><div className="help-legend-item"><span className="tile tile--correct help-tile" aria-hidden="true">S</span><span>Correct spot</span></div><div className="help-legend-item"><span className="tile tile--present help-tile" aria-hidden="true">U</span><span>Wrong spot</span></div><div className="help-legend-item"><span className="tile tile--absent help-tile" aria-hidden="true">M</span><span>Not in word</span></div></div></section></div>}
   </main>

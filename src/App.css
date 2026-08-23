@@ -111,3 +111,5 @@
 /* Persistent reveal wrapper lets Hint expand without a layout pop. */
 .hint-area { row-gap: .875rem; }.hint-reveal { display: grid; grid-template-rows: 0fr; width: 100%; transition: grid-template-rows 210ms ease-in; }.hint-reveal--open { grid-template-rows: 1fr; transition-timing-function: ease-out; }.hint-reveal-inner { min-height: 0; overflow: hidden; }.hint-reveal .hint-toast-row { opacity: 0; transform: translateY(-.3rem) scale(.98); transition: opacity 190ms ease-in, transform 190ms ease-in; }.hint-reveal--open .hint-toast-row { opacity: 1; transform: translateY(0) scale(1); transition-timing-function: ease-out; }
 @media (prefers-reduced-motion: reduce) { .hint-reveal, .hint-reveal .hint-toast-row { transition: none; }.hint-reveal .hint-toast-row { transform: none; } }
+
+.daily-countdown { margin: -.25rem 0 .8rem; color: var(--muted); font-size: .71rem; font-weight: 600; letter-spacing: .035em; line-height: 1.35; text-align: center; }.daily-countdown span { color: var(--rose); }.result-streak + .daily-countdown { margin-top: -.55rem; }:root[data-theme='dark'] .daily-countdown { color: var(--text-soft); }

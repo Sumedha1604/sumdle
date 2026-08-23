@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import json
-from datetime import date
+import time as system_time
+from datetime import date, datetime, timedelta
 from uuid import UUID, uuid4
 
 from . import database
@@ -33,11 +34,20 @@ def evaluate_guess(guess: str, solution: str) -> list[str]:
     return result
 
 
+def _next_daily_reset_at() -> str:
+    """Return the next server-local calendar boundary as an aware timestamp."""
+    next_day = date.today() + timedelta(days=1)
+    local_midnight = system_time.mktime((next_day.year, next_day.month, next_day.day, 0, 0, 0, 0, 0, -1))
+    return datetime.fromtimestamp(local_midnight).astimezone().isoformat()
+
+
 def _session(connection, row):
     guesses = connection.execute("SELECT guess, result FROM game_guesses WHERE game_id = ? ORDER BY attempt_number", (row["id"],)).fetchall()
     data = {"game_id": row["id"], "mode": row["mode"], "status": row["status"], "attempts": row["attempts"], "hint_count": row["hint_count"], "guesses": [{"word": guess["guess"], "result": json.loads(guess["result"])} for guess in guesses]}
     if row["status"] != "playing":
         data["solution"] = row["solution"]
+    if row["mode"] == "daily":
+        data["next_daily_reset_at"] = _next_daily_reset_at()
     return data
 
 
