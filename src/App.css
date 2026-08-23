@@ -123,10 +123,6 @@
 /* Extra-short phone pass: reclaim whitespace before reducing the board. */
 @media (max-width: 47.99rem) and (max-height: 40rem) { .game-shell { padding-top: max(.35rem, env(safe-area-inset-top)); padding-bottom: max(.3rem, env(safe-area-inset-bottom)); }.brand p { display: none; }.game-header { min-height: 2.1rem; }.game-card { margin-top: .1rem; padding-top: .3rem; padding-bottom: .2rem; }.mode-selector { margin-top: .22rem; }.status-strip { margin-top: .2rem; }.game-message { min-height: .45rem; margin: .08rem 0 0; line-height: .45rem; }.board-area { padding-top: .12rem; padding-bottom: .08rem; }.board-woman { width: 2.2rem; height: 2.2rem; margin-bottom: .1rem; }.hint-area { row-gap: .35rem; min-height: 0; margin-bottom: 0; }.hint-area:has(.hint-toast-row) + .game-keyboard { margin-top: .25rem; }.game-keyboard { gap: .16rem; padding-bottom: .12rem; }.keyboard-row { gap: .16rem; }.key { height: clamp(2rem, 5.7dvh, 2.15rem); }.game-footer { display: none; } }
 
-/* Mobile header keeps branding and utility controls in separate, safe rows. */
-@media (max-width: 47.99rem) { .game-header { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-areas: 'brand' 'actions'; justify-items: center; gap: .3rem; }.brand { grid-area: brand; align-items: center; justify-self: center; }.brand h1 { font-size: clamp(1.55rem, 7vw, 1.9rem); letter-spacing: clamp(.09em, .55vw, .11em); }.brand p { display: block; margin-top: .14rem; font-size: clamp(.68rem, 3.2vw, .82rem); letter-spacing: .035em; }.header-actions { grid-area: actions; justify-self: center; flex-wrap: nowrap; gap: .22rem; }.brand-flower, .brand-petal { left: -.82rem; }.brand-sparkle, .brand-heart { right: -.72rem; } }
-@media (max-width: 47.99rem) and (max-height: 40rem) { .brand p { display: block; }.game-header { min-height: 0; gap: .18rem; }.header-actions .circle-button { width: 2rem; height: 2rem; }.theme-option { width: 1.36rem; height: 1.36rem; }.theme-control { padding: .1rem; } }
-
 /* Mobile header: keep the brand and utility controls in one compact top row. */
 @media (max-width: 47.99rem) {
   .game-header {
@@ -147,6 +143,7 @@
   .brand h1 {
     font-size: clamp(1.38rem, 7vw, 1.8rem);
     letter-spacing: clamp(.075em, .45vw, .1em);
+    text-shadow: none;
   }
 
   .brand p {
