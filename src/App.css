@@ -126,3 +126,55 @@
 /* Mobile header keeps branding and utility controls in separate, safe rows. */
 @media (max-width: 47.99rem) { .game-header { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-areas: 'brand' 'actions'; justify-items: center; gap: .3rem; }.brand { grid-area: brand; align-items: center; justify-self: center; }.brand h1 { font-size: clamp(1.55rem, 7vw, 1.9rem); letter-spacing: clamp(.09em, .55vw, .11em); }.brand p { display: block; margin-top: .14rem; font-size: clamp(.68rem, 3.2vw, .82rem); letter-spacing: .035em; }.header-actions { grid-area: actions; justify-self: center; flex-wrap: nowrap; gap: .22rem; }.brand-flower, .brand-petal { left: -.82rem; }.brand-sparkle, .brand-heart { right: -.72rem; } }
 @media (max-width: 47.99rem) and (max-height: 40rem) { .brand p { display: block; }.game-header { min-height: 0; gap: .18rem; }.header-actions .circle-button { width: 2rem; height: 2rem; }.theme-option { width: 1.36rem; height: 1.36rem; }.theme-control { padding: .1rem; } }
+
+/* Mobile header: keep the brand and utility controls in one compact top row. */
+@media (max-width: 47.99rem) {
+  .game-header {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: 'brand actions';
+    align-items: start;
+    justify-items: stretch;
+    gap: clamp(.35rem, 2vw, .65rem);
+  }
+
+  .brand {
+    justify-self: start;
+    align-items: flex-start;
+    min-width: 0;
+    padding-top: .08rem;
+  }
+
+  .brand h1 {
+    font-size: clamp(1.38rem, 7vw, 1.8rem);
+    letter-spacing: clamp(.075em, .45vw, .1em);
+  }
+
+  .brand p {
+    display: block;
+    margin-top: .12rem;
+    font-size: clamp(.61rem, 2.7vw, .76rem);
+    letter-spacing: .025em;
+  }
+
+  .header-actions {
+    justify-self: end;
+    align-self: start;
+    flex-wrap: nowrap;
+    gap: clamp(.14rem, 1vw, .24rem);
+  }
+
+  .header-actions .circle-button {
+    width: clamp(1.9rem, 8.5vw, 2.18rem);
+    height: clamp(1.9rem, 8.5vw, 2.18rem);
+  }
+
+  .theme-control { padding: .1rem; }
+  .theme-option {
+    width: clamp(1.25rem, 5.8vw, 1.48rem);
+    height: clamp(1.25rem, 5.8vw, 1.48rem);
+    font-size: clamp(.72rem, 3.2vw, .86rem);
+  }
+
+  .brand-flower, .brand-petal { left: -.72rem; }
+  .brand-sparkle, .brand-heart { right: -.62rem; }
+}
