@@ -184,6 +184,35 @@ def test_hints_persist_are_sanitized_and_definitions_wait_for_completion(tempora
     assert asyncio.run(game_service.get_definition(game["game_id"]))["definition"] == "an apple is a round fruit"
 
 
+def test_daily_hints_resume_with_the_same_session_and_reject_completed_games(temporary_database, monkeypatch):
+    player = "6e349c1e-e299-4b8f-af1b-7c0f87d41f53"
+
+    async def definition(word):
+        return {"word": word, "definitions": [{"part_of_speech": "noun", "definition": "a small test word"}], "examples": []}
+
+    async def valid_guess(word):
+        return {"word": word, "valid": True, "source": "cache"}
+
+    monkeypatch.setattr(game_service, "get_word_definition", definition)
+    monkeypatch.setattr(game_service, "validate_with_fallback", valid_guess)
+    daily = game_service.start_game(player, "daily")
+
+    assert daily["mode"] == "daily"
+    assert daily["status"] == "playing"
+    assert daily["hint_count"] == 0
+    assert asyncio.run(game_service.get_hint(daily["game_id"], 1))["hint_count"] == 1
+
+    resumed = game_service.start_game(player, "daily")
+    assert resumed["game_id"] == daily["game_id"]
+    assert resumed["hint_count"] == 1
+    assert asyncio.run(game_service.get_hint(resumed["game_id"], 2))["hint_count"] == 2
+
+    with database.connect() as connection:
+        connection.execute("UPDATE game_sessions SET status = 'won' WHERE id = ?", (daily["game_id"],))
+    with pytest.raises(ValueError, match="already complete"):
+        asyncio.run(game_service.get_hint(daily["game_id"], 1))
+
+
 def test_hint_and_definition_handle_dictionary_outage(temporary_database, monkeypatch):
     game = game_service.start_game("6e349c1e-e299-4b8f-af1b-7c0f87d41f35", "unlimited")
 

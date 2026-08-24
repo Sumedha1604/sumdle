@@ -81,6 +81,8 @@ function App() {
     setMessage('')
     setGameStatus(GAME_STATUS.playing)
     setShowResult(false)
+    setHint('')
+    setHintCount(0)
   }, [])
 
   const applyGame = useCallback((game) => {
@@ -151,7 +153,7 @@ function App() {
   }, [applyGame, currentGuess, gameId, gameStatus, isLoading, isSubmitting])
 
   const requestHint = useCallback(async () => {
-    if (!gameId || hintCount >= 2 || isSubmitting) return
+    if (!gameId || gameStatus !== GAME_STATUS.playing || hintCount >= 2 || isSubmitting) return
     setIsSubmitting(true)
     try {
       const response = await fetch(`${API_BASE_URL}/api/games/${encodeURIComponent(gameId)}/hint?level=${hintCount + 1}`)
@@ -159,7 +161,7 @@ function App() {
       if (!response.ok) throw new Error('Hint request failed')
       setHint(result.hint); setHintCount(result.hint_count)
     } catch { setHint('tiny hints are taking a little break ✦') } finally { setIsSubmitting(false) }
-  }, [gameId, hintCount, isSubmitting])
+  }, [gameId, gameStatus, hintCount, isSubmitting])
 
   const handleInput = useCallback((key) => {
     if (isLoading || isSubmitting || gameStatus !== GAME_STATUS.playing || currentRow >= MAX_ROWS) return

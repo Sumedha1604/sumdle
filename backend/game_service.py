@@ -113,6 +113,8 @@ async def get_hint(game_id: str, level: int) -> dict:
         row = connection.execute("SELECT * FROM game_sessions WHERE id = ?", (_uuid(game_id),)).fetchone()
         if not row:
             raise LookupError("game not found")
+        if row["status"] != "playing":
+            raise ValueError("game is already complete")
         if row["hint_count"] >= 2:
             raise ValueError("all tiny hints have been used")
         connection.execute("UPDATE game_sessions SET hint_count = hint_count + 1 WHERE id = ?", (row["id"],))
