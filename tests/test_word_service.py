@@ -120,6 +120,60 @@ def test_server_game_sessions_are_authoritative(temporary_database, monkeypatch)
         asyncio.run(game_service.submit_guess(game["game_id"], solution))
 
 
+def test_unlimited_selection_excludes_persisted_player_history(temporary_database, monkeypatch):
+    player = "6e349c1e-e299-4b8f-af1b-7c0f87d41f55"
+    monkeypatch.setattr(game_service.random, "choice", lambda options: options[0])
+
+    first = game_service.start_game(player, "unlimited")
+    with database.connect() as connection:
+        first_solution = connection.execute("SELECT solution FROM game_sessions WHERE id = ?", (first["game_id"],)).fetchone()["solution"]
+        connection.execute("UPDATE game_sessions SET created_at = '2026-08-23T12:00:00+00:00' WHERE id = ?", (first["game_id"],))
+
+    # A later process/request reads the same database history, rather than any
+    # in-memory exclusion list, and cannot select yesterday's assigned answer.
+    resumed_process_game = game_service.start_game(player, "unlimited")
+    with database.connect() as connection:
+        second_solution = connection.execute("SELECT solution FROM game_sessions WHERE id = ?", (resumed_process_game["game_id"],)).fetchone()["solution"]
+    assert second_solution != first_solution
+
+
+def test_unlimited_history_is_player_and_mode_scoped(temporary_database, monkeypatch):
+    player_one = "6e349c1e-e299-4b8f-af1b-7c0f87d41f56"
+    player_two = "6e349c1e-e299-4b8f-af1b-7c0f87d41f57"
+    monkeypatch.setattr(game_service.random, "choice", lambda options: options[0])
+
+    daily = game_service.start_game(player_one, "daily")
+    with database.connect() as connection:
+        daily_solution = connection.execute("SELECT solution FROM game_sessions WHERE id = ?", (daily["game_id"],)).fetchone()["solution"]
+
+    # Daily assignments do not enter Unlimited's exclusion set.
+    monkeypatch.setattr(game_service.random, "choice", lambda options: daily_solution)
+    unlimited = game_service.start_game(player_one, "unlimited")
+    with database.connect() as connection:
+        assert connection.execute("SELECT solution FROM game_sessions WHERE id = ?", (unlimited["game_id"],)).fetchone()["solution"] == daily_solution
+
+    # Another player has an independent Unlimited history and may receive it.
+    other_player = game_service.start_game(player_two, "unlimited")
+    with database.connect() as connection:
+        assert connection.execute("SELECT solution FROM game_sessions WHERE id = ?", (other_player["game_id"],)).fetchone()["solution"] == daily_solution
+
+
+def test_unlimited_exhaustion_restarts_without_repeating_latest_answer(temporary_database, monkeypatch):
+    player = "6e349c1e-e299-4b8f-af1b-7c0f87d41f58"
+    monkeypatch.setattr(game_service.random, "choice", lambda options: options[0])
+    solutions = word_service.get_all_active_solutions()
+
+    games = [game_service.start_game(player, "unlimited") for _ in solutions]
+    with database.connect() as connection:
+        latest = connection.execute("SELECT solution FROM game_sessions WHERE id = ?", (games[-1]["game_id"],)).fetchone()["solution"]
+
+    next_cycle = game_service.start_game(player, "unlimited")
+    with database.connect() as connection:
+        next_solution = connection.execute("SELECT solution FROM game_sessions WHERE id = ?", (next_cycle["game_id"],)).fetchone()["solution"]
+    assert next_solution in solutions
+    assert next_solution != latest
+
+
 def test_sessions_count_only_valid_guesses_and_daily_resumes(temporary_database, monkeypatch):
     player = "6e349c1e-e299-4b8f-af1b-7c0f87d41f32"
 

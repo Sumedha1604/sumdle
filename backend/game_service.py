@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import random
 import time as system_time
 from datetime import date, datetime, timedelta
 from uuid import UUID, uuid4
@@ -10,7 +11,7 @@ from uuid import UUID, uuid4
 from . import database
 from .player_stats import record_result, register_player
 from .mcp_client import McpUnavailableError
-from .word_service import get_daily_solution, get_random_solution, get_word_definition, normalize_guess, validate_with_fallback
+from .word_service import get_all_active_solutions, get_daily_solution, get_word_definition, normalize_guess, validate_with_fallback
 
 
 def _uuid(value: str) -> str:
@@ -41,6 +42,27 @@ def _next_daily_reset_at() -> str:
     return datetime.fromtimestamp(local_midnight).astimezone().isoformat()
 
 
+def _get_unlimited_solution(connection, player_id: str) -> str:
+    """Choose an unassigned Unlimited solution from this player's persisted history."""
+    solutions = get_all_active_solutions()
+    if not solutions:
+        raise ValueError("no active solutions are available")
+    history = connection.execute(
+        "SELECT solution FROM game_sessions WHERE player_id = ? AND mode = 'unlimited' ORDER BY created_at DESC, id DESC",
+        (player_id,),
+    ).fetchall()
+    played = {row["solution"] for row in history}
+    unseen = tuple(solution for solution in solutions if solution not in played)
+    if unseen:
+        return random.choice(unseen)
+
+    # A completed cycle becomes available again, but never immediately repeats
+    # the most recently assigned word when another active solution exists.
+    most_recent = history[0]["solution"] if history else None
+    next_cycle = tuple(solution for solution in solutions if solution != most_recent)
+    return random.choice(next_cycle or solutions)
+
+
 def _session(connection, row):
     guesses = connection.execute("SELECT guess, result FROM game_guesses WHERE game_id = ? ORDER BY attempt_number", (row["id"],)).fetchall()
     data = {"game_id": row["id"], "mode": row["mode"], "status": row["status"], "attempts": row["attempts"], "hint_count": row["hint_count"], "guesses": [{"word": guess["guess"], "result": json.loads(guess["result"])} for guess in guesses]}
@@ -61,7 +83,7 @@ def start_game(player_id: str, mode: str) -> dict:
             row = connection.execute("SELECT * FROM game_sessions WHERE player_id = ? AND mode = 'daily' AND puzzle_date = ?", (player_id, today)).fetchone()
             if row:
                 return _session(connection, row)
-        solution = get_daily_solution(date.fromisoformat(today)) if mode == "daily" else get_random_solution()
+        solution = get_daily_solution(date.fromisoformat(today)) if mode == "daily" else _get_unlimited_solution(connection, player_id)
         game_id = str(uuid4())
         connection.execute("INSERT INTO game_sessions (id, player_id, mode, puzzle_date, solution, status, attempts, hint_count, created_at) VALUES (?, ?, ?, ?, ?, 'playing', 0, 0, ?)", (game_id, player_id, mode, today, solution, database.now_iso()))
         row = connection.execute("SELECT * FROM game_sessions WHERE id = ?", (game_id,)).fetchone()

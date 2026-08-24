@@ -9,10 +9,11 @@ export const THEME_DECORATIONS = {
   },
   forest: {
     atmosphere: ['forest', 'moss'],
-    boardCompanion: { kind: 'mushroom' },
+    boardCompanion: { kind: 'fox' },
     card: ['✦', '·'],
     header: ['·', '✦', '⋄', '·'],
-    hint: { kind: 'sprout' },
+    hint: { kind: 'leaf' },
+    hintLabel: 'HINT',
     subtitle: 'a tiny daily word game',
   },
   classic: {
