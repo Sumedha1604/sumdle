@@ -8,6 +8,7 @@ import Mascot from './components/Mascot.jsx'
 import HintFlower from './components/HintFlower.jsx'
 import ModeToggle from './components/ModeToggle.jsx'
 import Tooltip from './components/Tooltip.jsx'
+import VisualThemePicker from './components/VisualThemePicker.jsx'
 import './App.css'
 
 const MAX_ROWS = 6
@@ -17,6 +18,7 @@ const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, ''
 const keyPriority = { unused: 0, absent: 1, present: 2, correct: 3 }
 const GAME_STATUS = { playing: 'playing', won: 'won', lost: 'lost' }
 const shareTiles = { correct: '🟩', present: '🟪', absent: '⬜' }
+const VISUAL_THEMES = new Set(['blush', 'forest', 'classic'])
 
 function friendlyGuessMessage(message) {
   const text = String(message ?? '')
@@ -61,6 +63,10 @@ function App() {
   const [hintCount, setHintCount] = useState(0)
   const [definition, setDefinition] = useState(null)
   const [theme, setTheme] = useState(() => window.localStorage.getItem('sumdle_theme') || 'system')
+  const [visualTheme, setVisualTheme] = useState(() => {
+    const savedTheme = window.localStorage.getItem('sumdle_visual_theme')
+    return VISUAL_THEMES.has(savedTheme) ? savedTheme : 'blush'
+  })
   const [showHelp, setShowHelp] = useState(false)
   const [shareMessage, setShareMessage] = useState('')
   const [dailyResetAt, setDailyResetAt] = useState(null)
@@ -73,6 +79,11 @@ function App() {
     window.localStorage.setItem('sumdle_theme', theme)
     return () => query.removeEventListener('change', applyTheme)
   }, [theme])
+
+  useEffect(() => {
+    document.documentElement.dataset.visualTheme = visualTheme
+    window.localStorage.setItem('sumdle_visual_theme', visualTheme)
+  }, [visualTheme])
 
   const resetGame = useCallback(() => {
     setCurrentRow(0)
@@ -253,7 +264,7 @@ function App() {
 
   return <main className="game-shell">
     <div className="atmosphere atmosphere-pink" aria-hidden="true" /><div className="atmosphere atmosphere-lavender" aria-hidden="true" />
-    <header className="game-header"><div className="brand" aria-label="Sumdle: a tiny daily word game"><span className="brand-flower" aria-hidden="true">✿</span><span className="brand-sparkle" aria-hidden="true">✦</span><h1>SUMDLE</h1><p>a tiny daily word game ♡</p><span className="brand-heart" aria-hidden="true">♡</span><span className="brand-petal" aria-hidden="true">✦</span></div><div className="header-actions"><ThemeToggle theme={theme} onChange={setTheme} /><Tooltip label="How to play"><button className="circle-button" type="button" aria-label="How to play" onClick={() => setShowHelp(true)}><HelpIcon /></button></Tooltip><Tooltip className="tooltip--edge-right" label="Statistics"><button className="circle-button" type="button" aria-label="View statistics" onClick={openStats}><StatsIcon /></button></Tooltip></div></header>
+    <header className="game-header"><div className="brand" aria-label="Sumdle: a tiny daily word game"><span className="brand-flower" aria-hidden="true">✿</span><span className="brand-sparkle" aria-hidden="true">✦</span><h1>SUMDLE</h1><p>a tiny daily word game ♡</p><span className="brand-heart" aria-hidden="true">♡</span><span className="brand-petal" aria-hidden="true">✦</span></div><div className="header-actions"><VisualThemePicker theme={visualTheme} onChange={setVisualTheme} /><ThemeToggle theme={theme} onChange={setTheme} /><Tooltip label="How to play"><button className="circle-button" type="button" aria-label="How to play" onClick={() => setShowHelp(true)}><HelpIcon /></button></Tooltip><Tooltip className="tooltip--edge-right" label="Statistics"><button className="circle-button" type="button" aria-label="View statistics" onClick={openStats}><StatsIcon /></button></Tooltip></div></header>
     <section className="game-card" aria-label="Sumdle game board"><div className="card-decoration decoration-top" aria-hidden="true">✦</div><div className="card-decoration decoration-bottom" aria-hidden="true">✿</div>
       <ModeToggle gameMode={gameMode} onChange={switchMode} />
       <p className="status-strip">{isLoading ? 'loading puzzle...' : gameMode === GAME_MODE.daily ? "today's puzzle" : 'unlimited puzzle'} <span>·</span> 5 letters</p>
