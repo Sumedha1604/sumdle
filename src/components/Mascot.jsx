@@ -4,7 +4,7 @@ import mascotCelebrate from '../assets/mascot/mascot-celebrate.png'
 
 const CELEBRATION_DURATION = 1040
 
-function Mascot({ className = '', state = 'idle' }) {
+function Mascot({ className = '', decoration = { kind: 'pixel' }, state = 'idle' }) {
   const [isCelebrating, setIsCelebrating] = useState(state === 'win')
 
   useEffect(() => {
@@ -12,6 +12,8 @@ function Mascot({ className = '', state = 'idle' }) {
     const timeoutId = window.setTimeout(() => setIsCelebrating(false), CELEBRATION_DURATION)
     return () => window.clearTimeout(timeoutId)
   }, [isCelebrating])
+
+  if (decoration.kind !== 'pixel') return <span aria-hidden="true" className={`theme-companion theme-companion--${decoration.kind} theme-companion--${state}${className ? ` ${className}` : ''}`}>{decoration.symbol}</span>
 
   return <span
     aria-hidden="true"

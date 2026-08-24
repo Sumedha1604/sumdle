@@ -9,6 +9,7 @@ import HintFlower from './components/HintFlower.jsx'
 import ModeToggle from './components/ModeToggle.jsx'
 import Tooltip from './components/Tooltip.jsx'
 import VisualThemePicker from './components/VisualThemePicker.jsx'
+import { THEME_DECORATIONS } from './themeDecorations.js'
 import './App.css'
 
 const MAX_ROWS = 6
@@ -261,17 +262,18 @@ function App() {
   }, {}), [submittedGuesses])
 
   const mascotState = gameStatus === GAME_STATUS.won ? 'win' : gameStatus === GAME_STATUS.lost ? 'loss' : isSubmitting ? 'checking' : hint ? 'hint' : currentGuess.length === 5 ? 'excited' : currentGuess ? 'thoughtful' : 'idle'
+  const decorations = THEME_DECORATIONS[visualTheme]
 
   return <main className="game-shell">
-    <div className="atmosphere atmosphere-pink" aria-hidden="true" /><div className="atmosphere atmosphere-lavender" aria-hidden="true" />
-    <header className="game-header"><div className="brand" aria-label="Sumdle: a tiny daily word game"><span className="brand-flower" aria-hidden="true">✿</span><span className="brand-sparkle" aria-hidden="true">✦</span><h1>SUMDLE</h1><p>a tiny daily word game ♡</p><span className="brand-heart" aria-hidden="true">♡</span><span className="brand-petal" aria-hidden="true">✦</span></div><div className="header-actions"><VisualThemePicker theme={visualTheme} onChange={setVisualTheme} /><ThemeToggle theme={theme} onChange={setTheme} /><Tooltip label="How to play"><button className="circle-button" type="button" aria-label="How to play" onClick={() => setShowHelp(true)}><HelpIcon /></button></Tooltip><Tooltip className="tooltip--edge-right" label="Statistics"><button className="circle-button" type="button" aria-label="View statistics" onClick={openStats}><StatsIcon /></button></Tooltip></div></header>
-    <section className="game-card" aria-label="Sumdle game board"><div className="card-decoration decoration-top" aria-hidden="true">✦</div><div className="card-decoration decoration-bottom" aria-hidden="true">✿</div>
+    <div className={`atmosphere atmosphere-${decorations.atmosphere[0]}`} aria-hidden="true" /><div className={`atmosphere atmosphere-${decorations.atmosphere[1]}`} aria-hidden="true" />
+    <header className="game-header"><div className="brand" aria-label="Sumdle: a tiny daily word game"><span className="brand-flower" aria-hidden="true">{decorations.header[0]}</span><span className="brand-sparkle" aria-hidden="true">{decorations.header[1]}</span><h1>SUMDLE</h1><p>{decorations.subtitle}</p><span className="brand-heart" aria-hidden="true">{decorations.header[2]}</span><span className="brand-petal" aria-hidden="true">{decorations.header[3]}</span></div><div className="header-actions"><VisualThemePicker theme={visualTheme} onChange={setVisualTheme} /><ThemeToggle theme={theme} onChange={setTheme} /><Tooltip label="How to play"><button className="circle-button" type="button" aria-label="How to play" onClick={() => setShowHelp(true)}><HelpIcon /></button></Tooltip><Tooltip className="tooltip--edge-right" label="Statistics"><button className="circle-button" type="button" aria-label="View statistics" onClick={openStats}><StatsIcon /></button></Tooltip></div></header>
+    <section className="game-card" aria-label="Sumdle game board"><div className="card-decoration decoration-top" aria-hidden="true">{decorations.card[0]}</div><div className="card-decoration decoration-bottom" aria-hidden="true">{decorations.card[1]}</div>
       <ModeToggle gameMode={gameMode} onChange={switchMode} />
       <p className="status-strip">{isLoading ? 'loading puzzle...' : gameMode === GAME_MODE.daily ? "today's puzzle" : 'unlimited puzzle'} <span>·</span> 5 letters</p>
       <p className={`game-message${message ? ' game-message--visible' : ''}`} role="status" aria-live="polite">{message}</p>
       {gameStatus !== GAME_STATUS.playing && !showResult && <button className="view-results-button" type="button" onClick={() => setShowResult(true)}>results ♡</button>}
-      <div className="board-area"><Mascot className="board-woman" key={`${gameId}-${gameStatus}`} state={mascotState} /><GameBoard currentGuess={currentGuess} currentRow={currentRow} submittedGuesses={submittedGuesses} /></div>
-      {gameStatus === GAME_STATUS.playing && <div className="hint-area"><div className="hint-control-row"><HintFlower state={mascotState} /><button className={`hint-button${hintCount < 2 && !hint ? ' hint-button--available' : ''}`} type="button" onClick={requestHint} disabled={isLoading || isSubmitting || hintCount >= 2}>{hintCount >= 2 ? 'all tiny hints used' : `hint ${hintCount ? '(one more)' : ''}`}</button></div><div className={`hint-reveal${hint ? ' hint-reveal--open' : ''}`}><div className="hint-reveal-inner"><div className="hint-toast-row"><p aria-hidden={!hint} className="hint-toast" role="status"><strong>tiny hint ✦</strong>{hint}</p></div></div></div></div>}
+      <div className="board-area"><Mascot className="board-woman" decoration={decorations.boardCompanion} key={`${gameId}-${gameStatus}-${visualTheme}`} state={mascotState} /><GameBoard currentGuess={currentGuess} currentRow={currentRow} submittedGuesses={submittedGuesses} /></div>
+      {gameStatus === GAME_STATUS.playing && <div className="hint-area"><div className="hint-control-row"><HintFlower decoration={decorations.hint} state={mascotState} /><button className={`hint-button${hintCount < 2 && !hint ? ' hint-button--available' : ''}`} type="button" onClick={requestHint} disabled={isLoading || isSubmitting || hintCount >= 2}>{hintCount >= 2 ? 'all tiny hints used' : `hint ${hintCount ? '(one more)' : ''}`}</button></div><div className={`hint-reveal${hint ? ' hint-reveal--open' : ''}`}><div className="hint-reveal-inner"><div className="hint-toast-row"><p aria-hidden={!hint} className="hint-toast" role="status"><strong>tiny hint ✦</strong>{hint}</p></div></div></div></div>}
       <GameKeyboard disabled={isLoading || isSubmitting || gameStatus !== GAME_STATUS.playing || !gameId} keyStates={keyStates} onKeyPress={handleInput} />
       <footer className="game-footer">made with <span aria-label="love">♡</span></footer>
     </section>
