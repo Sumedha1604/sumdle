@@ -10,6 +10,7 @@ import ModeToggle from './components/ModeToggle.jsx'
 import Tooltip from './components/Tooltip.jsx'
 import VisualThemePicker from './components/VisualThemePicker.jsx'
 import { THEME_DECORATIONS } from './themeDecorations.js'
+import forestHintLeaf from './assets/mascot/forest-hint-leaf.png'
 import './App.css'
 
 const MAX_ROWS = 6
@@ -279,7 +280,7 @@ function App() {
     </section>
     {showResult && <GameResult attempts={submittedGuesses.length} definition={definition} gameMode={gameMode} gameStatus={gameStatus} nextDailyResetAt={dailyResetAt} onDailyReset={refreshDaily} onPlayAgain={playAgain} onShare={shareResult} onViewPuzzle={() => setShowResult(false)} shareMessage={shareMessage} solution={solution} streak={gameMode === GAME_MODE.daily ? stats?.current_streak : null} />}
     {showStats && <StatsModal error={statsError} loading={statsLoading} onClose={() => setShowStats(false)} stats={stats} />}
-    {showHelp && <div className="result-overlay" onMouseDown={() => setShowHelp(false)}><section className="result-card help-card" role="dialog" aria-modal="true" aria-labelledby="help-title" onMouseDown={(event) => event.stopPropagation()}><Tooltip className="modal-close-tooltip" label="Close help"><button className="stats-close" type="button" aria-label="Close help" onClick={() => setShowHelp(false)}>×</button></Tooltip><p className="result-kicker">how to play</p><h2 id="help-title">find the tiny word</h2><p className="result-copy">Guess the five-letter word in six tries. After each guess, the tiles show how close you are.</p><div className="help-legend" aria-label="Tile result legend"><div className="help-legend-item"><span className="tile tile--correct help-tile" aria-hidden="true">S</span><span>Correct spot</span></div><div className="help-legend-item"><span className="tile tile--present help-tile" aria-hidden="true">U</span><span>Wrong spot</span></div><div className="help-legend-item"><span className="tile tile--absent help-tile" aria-hidden="true">M</span><span>Not in word</span></div></div></section></div>}
+    {showHelp && <div className="result-overlay" onMouseDown={() => setShowHelp(false)}><section className="result-card help-card" role="dialog" aria-modal="true" aria-labelledby="help-title" onMouseDown={(event) => event.stopPropagation()}><Tooltip className="modal-close-tooltip" label="Close help"><button className="stats-close" type="button" aria-label="Close help" onClick={() => setShowHelp(false)}>×</button></Tooltip><p className="result-kicker">{visualTheme === 'forest' && <img className="forest-help-leaf" src={forestHintLeaf} alt="" aria-hidden="true" />}how to play</p><h2 id="help-title">find the tiny word</h2><p className="result-copy">Guess the five-letter word in six tries. After each guess, the tiles show how close you are.</p><div className="help-legend" aria-label="Tile result legend"><div className="help-legend-item"><span className="tile tile--correct help-tile" aria-hidden="true">S</span><span>Correct spot</span></div><div className="help-legend-item"><span className="tile tile--present help-tile" aria-hidden="true">U</span><span>Wrong spot</span></div><div className="help-legend-item"><span className="tile tile--absent help-tile" aria-hidden="true">M</span><span>Not in word</span></div></div></section></div>}
   </main>
 }
 
