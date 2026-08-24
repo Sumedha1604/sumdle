@@ -131,7 +131,6 @@ async def get_hint(game_id: str, level: int) -> dict:
         hint = f"this word is commonly used as a {part}"
     else:
         hint = _sanitize(str(entry.get("definition", "")), row["solution"])
-        hint = hint[:150].rstrip(" ,;:")
     return {"hint_count": hint_count, "hint": hint or "this word has a gentle everyday meaning ✦", "available": True}
 
 

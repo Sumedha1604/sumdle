@@ -213,6 +213,20 @@ def test_daily_hints_resume_with_the_same_session_and_reject_completed_games(tem
         asyncio.run(game_service.get_hint(daily["game_id"], 1))
 
 
+def test_second_hint_preserves_a_long_definition_without_truncation(temporary_database, monkeypatch):
+    long_definition = "a carefully written definition that continues well beyond one hundred and fifty characters so players can read every useful detail rather than seeing a sentence end unexpectedly in the middle of a word"
+
+    async def definition(word):
+        return {"word": word, "definitions": [{"part_of_speech": "noun", "definition": long_definition}], "examples": []}
+
+    monkeypatch.setattr(game_service, "get_word_definition", definition)
+    game = game_service.start_game("6e349c1e-e299-4b8f-af1b-7c0f87d41f54", "unlimited")
+    result = asyncio.run(game_service.get_hint(game["game_id"], 2))
+
+    assert result["hint"] == long_definition
+    assert len(result["hint"]) > 150
+
+
 def test_hint_and_definition_handle_dictionary_outage(temporary_database, monkeypatch):
     game = game_service.start_game("6e349c1e-e299-4b8f-af1b-7c0f87d41f35", "unlimited")
 

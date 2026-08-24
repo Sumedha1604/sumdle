@@ -13,6 +13,7 @@ function Mascot({ className = '', decoration = { kind: 'pixel' }, state = 'idle'
     return () => window.clearTimeout(timeoutId)
   }, [isCelebrating])
 
+  if (decoration.kind === 'mushroom') return <span aria-hidden="true" className={`forest-mushroom forest-mushroom--${state}${className ? ` ${className}` : ''}`}><span className="forest-mushroom-cap"><i /><i /><i /></span><span className="forest-mushroom-stem" /></span>
   if (decoration.kind !== 'pixel') return <span aria-hidden="true" className={`theme-companion theme-companion--${decoration.kind} theme-companion--${state}${className ? ` ${className}` : ''}`}>{decoration.symbol}</span>
 
   return <span
