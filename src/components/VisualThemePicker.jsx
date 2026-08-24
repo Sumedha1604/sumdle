@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import Tooltip from './Tooltip.jsx'
 
 const visualThemes = [
@@ -14,21 +15,49 @@ function PaletteIcon() {
 function VisualThemePicker({ theme, onChange }) {
   const [open, setOpen] = useState(false)
   const pickerRef = useRef(null)
+  const triggerRef = useRef(null)
+  const popoverRef = useRef(null)
+  const [position, setPosition] = useState(null)
+
+  const updatePosition = () => {
+    const rect = triggerRef.current?.getBoundingClientRect()
+    if (!rect) return
+    const mobile = window.matchMedia('(max-width: 47.99rem)').matches
+    setPosition(mobile
+      ? { top: `${Math.min(rect.bottom + 8, window.innerHeight - 8)}px`, left: '50%', transform: 'translateX(-50%)' }
+      : { top: `${rect.bottom + 8}px`, left: `${Math.max(16, Math.min(rect.right - 198, window.innerWidth - 214))}px` })
+  }
+
+  useLayoutEffect(() => {
+    if (!open) return undefined
+    updatePosition()
+    window.addEventListener('resize', updatePosition)
+    window.addEventListener('scroll', updatePosition, true)
+    return () => {
+      window.removeEventListener('resize', updatePosition)
+      window.removeEventListener('scroll', updatePosition, true)
+    }
+  }, [open])
 
   useEffect(() => {
     if (!open) return undefined
     const closeOnOutsidePress = (event) => {
-      if (!pickerRef.current?.contains(event.target)) setOpen(false)
+      if (!pickerRef.current?.contains(event.target) && !popoverRef.current?.contains(event.target)) setOpen(false)
     }
+    const closeOnEscape = (event) => { if (event.key === 'Escape') setOpen(false) }
     document.addEventListener('pointerdown', closeOnOutsidePress)
-    return () => document.removeEventListener('pointerdown', closeOnOutsidePress)
+    document.addEventListener('keydown', closeOnEscape)
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutsidePress)
+      document.removeEventListener('keydown', closeOnEscape)
+    }
   }, [open])
 
   return <div ref={pickerRef} className="visual-theme-picker">
     <Tooltip label="Choose visual theme">
-      <button aria-expanded={open} aria-haspopup="dialog" aria-label="Choose visual theme" className="circle-button visual-theme-trigger" onClick={() => setOpen((value) => !value)} type="button"><PaletteIcon /></button>
+      <button ref={triggerRef} aria-expanded={open} aria-haspopup="dialog" aria-label="Choose visual theme" className="circle-button visual-theme-trigger" onClick={() => setOpen((value) => !value)} type="button"><PaletteIcon /></button>
     </Tooltip>
-    {open && <section aria-label="Choose your theme" className="visual-theme-popover" role="dialog">
+    {open && position && createPortal(<section ref={popoverRef} aria-label="Choose your theme" className="visual-theme-popover visual-theme-popover--portal" role="dialog" style={position}>
       <p>choose your theme</p>
       <div className="visual-theme-options">
         {visualThemes.map((option) => <button aria-pressed={theme === option.id} className={`visual-theme-option visual-theme-option--${option.id}${theme === option.id ? ' visual-theme-option--active' : ''}`} key={option.id} onClick={() => { onChange(option.id); setOpen(false) }} type="button">
@@ -36,7 +65,7 @@ function VisualThemePicker({ theme, onChange }) {
           <span>{option.label}</span>
         </button>)}
       </div>
-    </section>}
+    </section>, document.body)}
   </div>
 }
 
